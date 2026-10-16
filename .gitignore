@@ -1,29 +1,37 @@
 # Unity 프로젝트에서 깃에 올리지 않을 것들
-# (유니티가 자동으로 다시 만들어 주는 파일이라 올릴 필요가 없다)
+# GitHub 공식 Unity 템플릿(github/gitignore의 Unity.gitignore)을 바탕으로 했다.
+# 대부분 유니티나 코드 편집기가 자동으로 다시 만들어 주는 파일이라 올릴 필요가 없다.
+#
+# 주의: Assets 안의 .meta 파일은 반드시 올려야 한다.
+# 이걸 빼면 다른 컴퓨터에서 열었을 때 인스펙터 연결(이미지, 스크립트 참조)이 전부 끊긴다.
 
-# 유니티가 자동 생성하는 폴더 - Library는 1GB가 넘는다
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
-[Uu]ser[Ss]ettings/
-[Mm]emoryCaptures/
+# 유니티가 자동 생성하는 폴더 (Library는 1GB가 넘는다)
+.utmp/
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+*.log
 
-# 유니티가 임시로 만드는 것
-/[Aa]ssets/AssetStoreTools*
-/[Aa]ssets/[Ss]treamingAssets/aa.meta
-/[Aa]ssets/[Ss]treamingAssets/aa/*
+# 메모리 캡처와 녹화 파일은 매우 커질 수 있다
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
 
-# .meta 파일은 반드시 올려야 한다.
-# 이걸 빼면 다른 컴퓨터에서 열었을 때 인스펙터 연결이 전부 끊긴다.
-!/[Aa]ssets/**/*.meta
+# 블렌더 백업 파일
+*.blend1
+*.blend1.meta
 
-# 비주얼 스튜디오, 라이더 같은 코드 편집기가 만드는 파일
-# (유니티가 필요할 때 다시 만든다)
+# 코드 편집기(비주얼 스튜디오, VS Code, 라이더)가 만드는 파일
 .vs/
 .idea/
+.gradle/
+.consulo/
+ExportedObj/
+/[Aa]ssets/Plugins/Editor/JetBrains*
+*.DotSettings.user
 *.csproj
 *.unityproj
 *.sln
@@ -39,12 +47,38 @@
 *.mdb
 *.opendb
 *.VC.db
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# 크래시 기록
+sysinfo.txt
+mono_crash.*
+crashlytics-build.properties
 
 # 빌드 결과물
 *.apk
 *.aab
 *.unitypackage
+*.unitypackage.meta
 *.app
+
+# 테스트 실행 때 자동으로 생기는 씬
+InitTestScene*.unity*
+/[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Addressables가 자동 생성하는 파일
+/ServerData
+/[Aa]ssets/StreamingAssets/aa*
+/[Aa]ssets/AddressableAssetsData/link.xml*
+/[Aa]ssets/Addressables_Temp*
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+
+# Visual Scripting이 자동 생성하는 파일
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
+/[Aa]ssets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
 
 # 운영체제가 만드는 파일
 .DS_Store
