@@ -442,6 +442,7 @@ GameObject:
   - component: {fileID: 1003268480}
   - component: {fileID: 1003268481}
   - component: {fileID: 1003268482}
+  - component: {fileID: 1003268483}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -599,6 +600,22 @@ MonoBehaviour:
   glowIntensity: 1
   sortingOrder: 50
   targetCamera: {fileID: 0}
+--- !u!114 &1003268483
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1003268475}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 791f23a62f6505c4fbf06dc8ea0d209b, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
+  maxLives: 3
+  display: {fileID: 1003268482}
+  enableTestKey: 1
+  testKey: 22
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
