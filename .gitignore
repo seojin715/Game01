@@ -16,6 +16,17 @@
 /[Uu]ser[Ss]ettings/
 *.log
 
+# 노래 파일은 저작권 때문에 올리지 않는다. 팀원이 각자 Assets/Audio에 넣는다.
+# .meta도 함께 뺀다. (노래 없이 .meta만 있으면 유니티가 지워 버린다)
+/[Aa]ssets/[Aa]udio/**/*.mp3
+/[Aa]ssets/[Aa]udio/**/*.mp3.meta
+/[Aa]ssets/[Aa]udio/**/*.ogg
+/[Aa]ssets/[Aa]udio/**/*.ogg.meta
+/[Aa]ssets/[Aa]udio/**/*.wav
+/[Aa]ssets/[Aa]udio/**/*.wav.meta
+/[Aa]ssets/[Aa]udio/**/*.flac
+/[Aa]ssets/[Aa]udio/**/*.flac.meta
+
 # 메모리 캡처와 녹화 파일은 매우 커질 수 있다
 /[Mm]emoryCaptures/
 /[Rr]ecordings/
