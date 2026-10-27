@@ -18,6 +18,21 @@ public class HeartView : MonoBehaviour
     [Tooltip("칸 대비 하트 크기. 이미지에 투명 여백이 많으면 값을 키워야 한다.")]
     [Range(0.05f, 5f)] public float sizeRatio = 0.7f;
 
+    [Header("이동 중 늘어나기")]
+    public bool enableStretch = true;
+
+    [Tooltip("속도 1칸/초마다 이동 방향으로 늘어나는 비율. 0.015면 20칸/초일 때 30% 늘어난다.")]
+    [Range(0f, 0.1f)] public float stretchPerSpeed = 0.015f;
+
+    [Tooltip("늘어나는 최대 비율. 0.3이면 원래 길이의 1.3배까지.")]
+    [Range(0f, 1f)] public float maxStretch = 0.3f;
+
+    [Tooltip("늘어난 만큼 옆으로 얇아지는 정도. 1이면 넓이가 그대로 유지되고, 0이면 옆으로는 그대로다.")]
+    [Range(0f, 1f)] public float keepArea = 1f;
+
+    [Tooltip("늘어나는 모양이 속도를 따라가는 빠르기. 크면 즉각적이고, 작으면 부드럽게 따라간다.")]
+    [Min(0.1f)] public float stretchResponse = 30f;
+
     [Header("색과 빛")]
     [Tooltip("이미지 색에 곱해지는 색. 흰색이면 이미지 색 그대로 나온다.")]
     public Color tint = Color.white;
@@ -37,9 +52,6 @@ public class HeartView : MonoBehaviour
     public Color CurrentTint => tint;
     public int SortingOrder => sortingOrder;
 
-    /// <summary>하트 본체의 실제 크기 (월드 단위). 잔상 꼬리 두께를 여기에 맞춘다.</summary>
-    public float BodySize => (grid != null ? grid.cellSize : 1f) * sizeRatio;
-
     static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
     SpriteRenderer spriteRenderer;
@@ -47,16 +59,55 @@ public class HeartView : MonoBehaviour
     bool materialsCreated;
     bool warnedMissingSprite;
 
+    PlayerMover mover;
+    Vector2 stretch = Vector2.one;   // 지금 적용 중인 가로·세로 배율
+
     void Awake()
     {
         if (grid == null) grid = FindFirstObjectByType<GameGrid>();
+        mover = GetComponent<PlayerMover>();
         ApplyLook();
     }
 
     void LateUpdate()
     {
+        UpdateStretch();
+
         // 플레이 중에 인스펙터에서 크기와 색을 바꿔도 바로 보이게 매 프레임 적용한다.
         ApplyLook();
+    }
+
+    /// <summary>
+    /// 이동 속도에 비례해 이동 방향으로 늘어날 배율을 정한다.
+    /// 가로로 움직이면 가로로 길어지고 세로로 얇아지며, 세로도 마찬가지다.
+    /// </summary>
+    void UpdateStretch()
+    {
+        Vector2 target = Vector2.one;
+
+        if (enableStretch && mover != null)
+        {
+            float cellSize = grid != null ? grid.cellSize : 1f;
+            Vector2 velocity = mover.Velocity;
+            float cellsPerSecond = velocity.magnitude / cellSize;
+            float amount = Mathf.Min(cellsPerSecond * stretchPerSpeed, maxStretch);
+
+            if (amount > 0f)
+            {
+                Vector2 dir = velocity.normalized;
+                float along = 1f + amount;                            // 이동 방향 배율
+                float across = Mathf.Lerp(1f, 1f / along, keepArea);  // 옆 방향 배율
+
+                // 방향 성분의 제곱으로 섞으면 가로·세로 이동은 정확히, 대각선은 그 사이로 늘어난다.
+                target = new Vector2(
+                    Mathf.Lerp(across, along, dir.x * dir.x),
+                    Mathf.Lerp(across, along, dir.y * dir.y));
+            }
+        }
+
+        // 프레임 속도와 무관하게 목표 배율을 부드럽게 따라간다.
+        float k = 1f - Mathf.Exp(-stretchResponse * Time.deltaTime);
+        stretch = Vector2.Lerp(stretch, target, k);
     }
 
     /// <summary>
@@ -101,7 +152,8 @@ public class HeartView : MonoBehaviour
         warnedMissingSprite = false;
 
         float cellSize = grid != null ? grid.cellSize : 1f;
-        transform.localScale = SpriteMaterial.FitScale(spriteRenderer.sprite, cellSize * sizeRatio);
+        Vector3 fit = SpriteMaterial.FitScale(spriteRenderer.sprite, cellSize * sizeRatio);
+        transform.localScale = new Vector3(fit.x * stretch.x, fit.y * stretch.y, 1f);
 
         // 렌더러 색은 1을 넘을 수 없으므로, 1보다 밝은 색은 머티리얼에 넣어 Bloom이 받게 한다.
         if (heartMaterial != null) heartMaterial.SetColor(ColorProperty, SpriteMaterial.Glow(tint, glowIntensity));

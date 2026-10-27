@@ -3,6 +3,8 @@ using UnityEngine;
 /// <summary>
 /// 화면 왼쪽 위에 남은 목숨을 하트 아이콘으로 나란히 보여 준다.
 /// 아이콘은 카메라 위치를 기준으로 잡아서 화면 비율이 바뀌어도 제자리에 남는다.
+/// 아이콘은 이 컴포넌트가 붙은 오브젝트의 자식이 아닌 별도 오브젝트 아래에 만든다.
+/// 그래서 플레이어에 붙여도 하트 크기나 늘어나는 모양을 따라가지 않는다.
 /// </summary>
 public class HealthDisplay : MonoBehaviour
 {
@@ -39,6 +41,7 @@ public class HealthDisplay : MonoBehaviour
     static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
     SpriteRenderer[] icons;
+    Transform iconRoot;
     Material iconMaterial;
     Sprite builtSprite;
     int lives = int.MaxValue;
@@ -86,6 +89,9 @@ public class HealthDisplay : MonoBehaviour
     {
         if (iconMaterial == null) iconMaterial = SpriteMaterial.Create("HealthIconMaterial");
 
+        // 아이콘을 담을 오브젝트. 어디에도 붙이지 않아서 크기가 항상 1이다.
+        if (iconRoot == null) iconRoot = new GameObject("HealthIcons").transform;
+
         if (icons != null)
         {
             foreach (var icon in icons)
@@ -112,7 +118,7 @@ public class HealthDisplay : MonoBehaviour
         for (int i = 0; i < iconCount; i++)
         {
             var go = new GameObject($"HealthIcon_{i}");
-            go.transform.SetParent(transform, false);
+            go.transform.SetParent(iconRoot, false);
 
             var renderer = go.AddComponent<SpriteRenderer>();
             renderer.sprite = sprite;
@@ -157,5 +163,6 @@ public class HealthDisplay : MonoBehaviour
     void OnDestroy()
     {
         if (iconMaterial != null) Destroy(iconMaterial);
+        if (iconRoot != null) Destroy(iconRoot.gameObject);
     }
 }

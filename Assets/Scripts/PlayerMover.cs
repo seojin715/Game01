@@ -33,6 +33,9 @@ public class PlayerMover : MonoBehaviour
     /// <summary>칸 사이를 움직이고 있는지</summary>
     public bool IsMoving { get; private set; }
 
+    /// <summary>이번 프레임의 이동 속도 (초당 월드 거리, 방향 포함). 하트 늘어나기에 쓴다.</summary>
+    public Vector2 Velocity { get; private set; }
+
     void Awake()
     {
         if (grid == null) grid = FindFirstObjectByType<GameGrid>();
@@ -89,12 +92,17 @@ public class PlayerMover : MonoBehaviour
         {
             transform.position = target;
             IsMoving = false;
+            Velocity = Vector2.zero;
             return;
         }
 
         // 기준 프레임당 approachRatio씩 좁히는 것을 실제 deltaTime으로 환산한다.
         float t = 1f - Mathf.Pow(1f - approachRatio, Time.deltaTime * referenceFps);
-        transform.position = Vector3.Lerp(current, target, t);
+        Vector3 next = Vector3.Lerp(current, target, t);
+        transform.position = next;
         IsMoving = true;
+
+        // 시간이 멈춰 있으면(deltaTime 0) 속도를 0으로 둔다.
+        Velocity = Time.deltaTime > 0f ? (Vector2)(next - current) / Time.deltaTime : Vector2.zero;
     }
 }
