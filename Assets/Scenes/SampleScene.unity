@@ -168,7 +168,7 @@ MonoBehaviour:
   rows: 5
   cellSize: 1
   fitCamera: 1
-  cameraMargin: 0.25
+  cameraMargin: 0.4
   setCameraBackground: 1
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   targetCamera: {fileID: 0}
@@ -428,6 +428,225 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &854805370
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 854805375}
+  - component: {fileID: 854805374}
+  - component: {fileID: 854805373}
+  - component: {fileID: 854805372}
+  - component: {fileID: 854805371}
+  m_Layer: 0
+  m_Name: Music
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &854805371
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf8478dfbef755c438ecf0ee969175f8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BeatFlash
+  clock: {fileID: 0}
+  targetCamera: {fileID: 0}
+  bpm: 120
+  offset: 0
+  color: {r: 1, g: 1, b: 1, a: 1}
+  maxAlpha: 0.2
+  fadeLength: 0.5
+  sortingOrder: -20
+--- !u!114 &854805372
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba27f461be63d52418f48b8e074da608, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SlowMotion
+  clock: {fileID: 0}
+  duration: 0.7
+  slowestSpeed: 0.3
+  slowOverTime:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.15
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  enableTestKey: 1
+  testKey: 34
+--- !u!114 &854805373
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 699d958cf475ace468e7c782f64365ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SongClock
+  songFileName: MEGALOVANIA.mp3
+  playOnStart: 1
+  volume: 0.8
+  resyncThreshold: 0.05
+  correctionSpeed: 5
+--- !u!82 &854805374
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
+  m_PlayOnAwake: 1
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 0
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!4 &854805375
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.00287, y: -0.02667, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1003268475
 GameObject:
   m_ObjectHideFlags: 0
@@ -549,7 +768,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HeartView
   grid: {fileID: 0}
   sprite: {fileID: 21300000, guid: 310de81df4f3ce041bfb29cfa4e39abe, type: 3}
-  sizeRatio: 0.7
+  sizeRatio: 0.6
+  hitboxScale: 0.8
   enableStretch: 1
   stretchPerSpeed: 0.015
   maxStretch: 0.3
@@ -632,8 +852,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HealthDisplay
   sprite: {fileID: 21300000, guid: 310de81df4f3ce041bfb29cfa4e39abe, type: 3}
   iconCount: 3
-  iconSize: 0.1
-  spacing: 2
+  iconSize: 0.25
+  spacing: 0.4
   margin: {x: 0.25, y: 0.25}
   tint: {r: 1, g: 1, b: 1, a: 1}
   glowIntensity: 1
@@ -652,9 +872,188 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   maxLives: 3
+  invincibleTime: 1.5
+  invertScreenWhileInvincible: 1
+  motionBlurWhileInvincible: 1
+  motionBlurStrength: 0.8
+  motionBlurFadeIn: 0.08
+  motionBlurFadeOut: 0.4
   display: {fileID: 0}
+  slowMotion: {fileID: 0}
   enableTestKey: 1
   testKey: 22
+--- !u!1 &1382237584
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1382237586}
+  - component: {fileID: 1382237585}
+  m_Layer: 0
+  m_Name: Level
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1382237585
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382237584}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
+  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
+  clock: {fileID: 0}
+  grid: {fileID: 0}
+  heart: {fileID: 0}
+  health: {fileID: 0}
+  beatFlash: {fileID: 0}
+  targetCamera: {fileID: 0}
+  cannon:
+    speed: 8
+    ballSize: 0.5
+    ballHitScale: 0.8
+    ballAppearTime: 0.06
+    launcherSize: 0.6
+    launcherThickness: 0.14
+    launcherDistance: 0.55
+    leadTime: 1
+    enterTime: 0.35
+    chargeTime: 0.15
+    chargeScale: 0.75
+    recoverTime: 0.1
+    stayTime: 0.25
+    exitTime: 0.2
+    launcherSortingOrder: 5
+    ballSortingOrder: 20
+  laser:
+    defaultWarnTime: 0.9
+    defaultHoldTime: 0.4
+    thickness: 1
+    hitScale: 0.8
+    warnAlpha: 0.3
+    emitterSize: 0.25
+    emitterDistance: 0.35
+    beamWidth: 0.6
+    glowIntensity: 1.5
+    spreadTime: 0.5
+    overshoot: 1.3
+    flashBoost: 2
+    flashTime: 0.15
+    flickerAmount: 0.075
+    flickerRate: 25
+    shakeOnActivate: 1
+    shakeAmount: 0.1
+    shakeDuration: 0.15
+    appearTime: 0.1
+    fadeOutTime: 0.15
+    warningSortingOrder: -5
+    beamSortingOrder: 8
+    emitterSortingOrder: 6
+  floor:
+    defaultWarnTime: 0.9
+    defaultBlockTime: 2
+    blockSize: 0.8
+    hitScale: 0.8
+    warnAlpha: 0.3
+    warnEndSize: 0.2
+    appearTime: 0.1
+    riseTime: 0.12
+    riseOvershoot: 0.1
+    blinkTime: 0.45
+    blinkRate: 8
+    blinkAlpha: 0.3
+    fadeOutTime: 0.15
+    warningSortingOrder: -5
+    blockSortingOrder: 7
+  homing:
+    startSpeed: 3
+    acceleration: 6
+    maxSpeed: 16
+    startTurnRate: 360
+    turnRateDecay: 300
+    minTurnRate: 0
+    missileSize: 0.5
+    hitScale: 0.7
+    appearTime: 0.08
+    maxLifetime: 8
+    explosionTime: 0.3
+    explosionScale: 2.5
+    launcherSize: 0.6
+    launcherThickness: 0.09
+    launcherDistance: 0.55
+    leadTime: 1
+    enterTime: 0.35
+    kickDistance: 0.25
+    kickTime: 0.18
+    stayTime: 0.3
+    exitTime: 0.2
+    stepTime: 0.008333334
+    launcherSortingOrder: 5
+    missileSortingOrder: 20
+    explosionSortingOrder: 21
+  spike:
+    defaultWarnTime: 0.6
+    defaultHoldTime: 0.5
+    width: 0.9
+    depth: 0.85
+    hitScale: 0.8
+    warnAlpha: 0.3
+    appearTime: 0.1
+    extendTime: 0.08
+    overshoot: 1.15
+    retractTime: 0.15
+    warningSortingOrder: -5
+    spikeSortingOrder: 7
+  boomerang:
+    speed: 9
+    defaultRange: 3
+    spinSpeed: 900
+    size: 0.55
+    hitScale: 0.75
+    appearTime: 0.06
+    catchTime: 0.08
+    showRange: 1
+    pathWidth: 0.35
+    pathAlpha: 0.15
+    markerAlpha: 0.35
+    rangeSortingOrder: -5
+    launcherSize: 0.6
+    launcherThickness: 0.06
+    launcherDistance: 0.55
+    leadTime: 1
+    enterTime: 0.35
+    chargeTime: 0.15
+    chargeScale: 0.75
+    recoverTime: 0.1
+    stayTime: 0.15
+    exitTime: 0.2
+    launcherSortingOrder: 5
+    boomerangSortingOrder: 20
+--- !u!4 &1382237586
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382237584}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.00287, y: -0.02667, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -663,3 +1062,5 @@ SceneRoots:
   - {fileID: 619394802}
   - {fileID: 118173240}
   - {fileID: 1003268479}
+  - {fileID: 854805375}
+  - {fileID: 1382237586}

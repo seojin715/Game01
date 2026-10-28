@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -17,11 +18,19 @@ public class GridView : MonoBehaviour
     public int sortingOrder = -10;
 
     GameGrid grid;
+    readonly List<SpriteRenderer> lines = new List<SpriteRenderer>();
 
     void Awake()
     {
         grid = GetComponent<GameGrid>();
         BuildLines();
+    }
+
+    void LateUpdate()
+    {
+        // 무적 중 화면 반전을 선 색에도 적용한다.
+        Color color = ScreenInvert.Apply(lineColor);
+        foreach (var line in lines) line.color = color;
     }
 
     /// <summary>세로 선 columns + 1개, 가로 선 rows + 1개를 만든다.</summary>
@@ -50,5 +59,6 @@ public class GridView : MonoBehaviour
         var renderer = ShapeSprites.CreateSquare(name, transform, lineColor, sortingOrder);
         renderer.transform.position = position;
         renderer.transform.localScale = new Vector3(size.x, size.y, 1f);
+        lines.Add(renderer);
     }
 }

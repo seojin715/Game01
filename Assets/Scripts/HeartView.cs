@@ -18,6 +18,9 @@ public class HeartView : MonoBehaviour
     [Tooltip("칸 대비 하트 크기. 이미지에 투명 여백이 많으면 값을 키워야 한다.")]
     [Range(0.05f, 5f)] public float sizeRatio = 0.7f;
 
+    [Tooltip("충돌 판정 크기 (하트 크기 대비). 보이는 모양보다 약간 작게 둬서 억울한 피격을 줄인다.")]
+    [Range(0.3f, 1f)] public float hitboxScale = 0.8f;
+
     [Header("이동 중 늘어나기")]
     public bool enableStretch = true;
 
@@ -52,6 +55,12 @@ public class HeartView : MonoBehaviour
     public Color CurrentTint => tint;
     public int SortingOrder => sortingOrder;
 
+    /// <summary>
+    /// 충돌 판정용 반지름 (월드 단위). 하트 크기 기준이며 늘어나는 모양은 반영하지 않는다.
+    /// 판정 중심은 하트의 현재 위치라서 칸 사이를 이동하는 중에도 그대로 판정된다.
+    /// </summary>
+    public float HitRadius => (grid != null ? grid.cellSize : 1f) * sizeRatio * 0.5f * hitboxScale;
+
     static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
     SpriteRenderer spriteRenderer;
@@ -64,7 +73,7 @@ public class HeartView : MonoBehaviour
 
     void Awake()
     {
-        if (grid == null) grid = FindFirstObjectByType<GameGrid>();
+        if (grid == null) grid = FindAnyObjectByType<GameGrid>();
         mover = GetComponent<PlayerMover>();
         ApplyLook();
     }

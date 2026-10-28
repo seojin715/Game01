@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -19,7 +20,7 @@ public class GameGrid : MonoBehaviour
     public bool fitCamera = true;
 
     [Tooltip("격자와 화면 가장자리 사이 여백 (격자 크기 대비 비율)")]
-    [Range(0f, 1f)] public float cameraMargin = 0.25f;
+    [Range(0f, 1f)] public float cameraMargin = 0.4f;
 
     [Tooltip("켜면 카메라 배경을 아래 색으로 바꾼다.")]
     public bool setCameraBackground = true;
@@ -42,6 +43,15 @@ public class GameGrid : MonoBehaviour
         if (fitCamera || setCameraBackground) SetUpCamera();
     }
 
+    void LateUpdate()
+    {
+        // 무적 중 화면 반전을 배경에도 적용한다.
+        if (!setCameraBackground) return;
+
+        var cam = targetCamera != null ? targetCamera : Camera.main;
+        if (cam != null) cam.backgroundColor = ScreenInvert.Apply(backgroundColor);
+    }
+
     /// <summary>칸 좌표를 월드 좌표(칸 중심)로 바꾼다.</summary>
     public Vector3 CellToWorld(int x, int y)
     {
@@ -57,6 +67,28 @@ public class GameGrid : MonoBehaviour
     public Vector2Int ClampCell(Vector2Int cell)
     {
         return new Vector2Int(Mathf.Clamp(cell.x, 0, columns - 1), Mathf.Clamp(cell.y, 0, rows - 1));
+    }
+
+    // 막힌 칸마다 막고 있는 장애물 수. 같은 칸을 여러 바닥 포탄이 겹쳐 막아도
+    // 마지막 하나가 풀릴 때까지 막혀 있게 하려고 개수로 센다.
+    readonly Dictionary<Vector2Int, int> blockCounts = new Dictionary<Vector2Int, int>();
+
+    /// <summary>칸이 막혀 있는지. 막힌 칸으로는 하트가 들어갈 수 없다.</summary>
+    public bool IsBlocked(Vector2Int cell) => blockCounts.TryGetValue(cell, out int count) && count > 0;
+
+    /// <summary>칸을 막는다. 같은 장애물이 나중에 Unblock을 꼭 한 번 불러야 한다.</summary>
+    public void Block(Vector2Int cell)
+    {
+        blockCounts.TryGetValue(cell, out int count);
+        blockCounts[cell] = count + 1;
+    }
+
+    /// <summary>Block으로 막았던 칸을 하나 푼다.</summary>
+    public void Unblock(Vector2Int cell)
+    {
+        if (!blockCounts.TryGetValue(cell, out int count)) return;
+        if (count <= 1) blockCounts.Remove(cell);
+        else blockCounts[cell] = count - 1;
     }
 
     /// <summary>격자가 화면에 다 보이도록 카메라 위치와 크기, 배경색을 맞춘다.</summary>

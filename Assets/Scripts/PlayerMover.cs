@@ -38,7 +38,7 @@ public class PlayerMover : MonoBehaviour
 
     void Awake()
     {
-        if (grid == null) grid = FindFirstObjectByType<GameGrid>();
+        if (grid == null) grid = FindAnyObjectByType<GameGrid>();
     }
 
     void Start()
@@ -79,7 +79,9 @@ public class PlayerMover : MonoBehaviour
         if (dx == 0 && dy == 0) return;
 
         var next = new Vector2Int(Cell.x + dx, Cell.y + dy);
-        if (grid.IsInside(next.x, next.y)) Cell = next;   // 격자 밖이면 그대로 멈춘다.
+
+        // 격자 밖이나 막힌 칸이면 그대로 멈춘다. (막힌 칸으로 가려고 해도 피해는 없다)
+        if (grid.IsInside(next.x, next.y) && !grid.IsBlocked(next)) Cell = next;
     }
 
     /// <summary>목표 칸까지 남은 거리의 일정 비율씩 다가간다. 프레임 속도와 무관하다.</summary>
