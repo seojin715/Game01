@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "title": "새 레벨",
+  "audioFile": "MEGALOVANIA.mp3",
+  "bpm": 120.0,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "cannon", "time": 0.25, "side": "top", "line": 2 },
+    { "type": "cannon", "time": 0.5, "side": "top", "line": 1 },
+    { "type": "cannon", "time": 0.75, "side": "top", "line": 0 },
+    { "type": "cannon", "time": 2.0, "side": "top", "line": 2 }
+  ]
+}

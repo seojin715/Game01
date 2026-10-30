@@ -77,6 +77,8 @@ public class PlayerMover : MonoBehaviour
     /// <summary>WASD와 방향키를 읽어 목표 칸을 한 칸 옮긴다.</summary>
     void ReadInput()
     {
+        if (Countdown.IsActive) return;   // 노래 시작 전 3, 2, 1을 세는 동안은 움직이지 못한다.
+
         var keyboard = Keyboard.current;
         if (keyboard == null) return;
 

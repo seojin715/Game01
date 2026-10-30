@@ -45,7 +45,21 @@ public class BeatFlash : MonoBehaviour
         if (clock == null) clock = FindAnyObjectByType<SongClock>();
 
         // 화면 전체를 덮는 사각형. 카메라를 따라가야 하므로 어디에도 붙이지 않는다.
-        flash = ShapeSprites.CreateSquare("BeatFlash", null, color, sortingOrder);
+        // 컴포넌트가 꺼져 있으면 LateUpdate가 돌지 않으므로, 처음엔 투명하게 숨겨 두고 켜져 있을 때만 보인다.
+        var hidden = color;
+        hidden.a = 0f;
+        flash = ShapeSprites.CreateSquare("BeatFlash", null, hidden, sortingOrder);
+        flash.enabled = enabled;
+    }
+
+    void OnEnable()
+    {
+        if (flash != null) flash.enabled = true;
+    }
+
+    void OnDisable()
+    {
+        if (flash != null) flash.enabled = false;
     }
 
     void LateUpdate()

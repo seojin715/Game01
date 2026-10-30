@@ -69,6 +69,7 @@ public class GridView : MonoBehaviour
     GameGrid grid;
     PlayerMover mover;
     Material glowMaterial;
+    Material lineMaterial;   // 격자 선 (어둠 기믹용 셰이더)
     readonly List<SpriteRenderer> glows = new List<SpriteRenderer>();
     readonly Dictionary<(bool vertical, int line), float> pulseStarts = new Dictionary<(bool, int), float>();   // 줄마다 번쩍이기 시작한 시간
     MaterialPropertyBlock gateProperties;
@@ -87,6 +88,7 @@ public class GridView : MonoBehaviour
         grid = GetComponent<GameGrid>();
         mover = FindAnyObjectByType<PlayerMover>();
         glowMaterial = SpriteMaterial.Create("PortalGate");
+        lineMaterial = SpriteMaterial.CreateDarkGridLine("GridLine");   // 어두워지면 빛이 닿는 곳만 보인다.
         gateProperties = new MaterialPropertyBlock();
     }
 
@@ -103,10 +105,18 @@ public class GridView : MonoBehaviour
     void OnDestroy()
     {
         if (glowMaterial != null) Destroy(glowMaterial);
+        if (lineMaterial != null) Destroy(lineMaterial);
     }
 
     void LateUpdate()
     {
+        // 노래 시작 전 3, 2, 1을 세는 동안은 숫자 칸만 보이도록 격자를 감춘다.
+        if (Countdown.IsActive)
+        {
+            HideAll();
+            return;
+        }
+
         var b = grid.CurrentBounds;
         var portal = grid.CurrentPortal;
 
@@ -144,6 +154,14 @@ public class GridView : MonoBehaviour
 
         DrawWarnings();
         DrawPortalGates(b, portal);
+    }
+
+    void HideAll()
+    {
+        foreach (var r in lines) r.enabled = false;
+        foreach (var r in wallGlows) r.enabled = false;
+        foreach (var r in warningStrips) r.enabled = false;
+        foreach (var r in glows) r.enabled = false;
     }
 
     /// <summary>min과 max 위치(벽)와 그 사이의 칸 경계(정수 위치)를 차례로 돌려준다.</summary>
@@ -213,7 +231,9 @@ public class GridView : MonoBehaviour
     {
         if (usedLines >= lines.Count)
         {
-            lines.Add(ShapeSprites.CreateSquare($"Line_{lines.Count}", transform, lineColor, sortingOrder));
+            var created = ShapeSprites.CreateSquare($"Line_{lines.Count}", transform, lineColor, sortingOrder);
+            if (lineMaterial != null) created.sharedMaterial = lineMaterial;
+            lines.Add(created);
         }
 
         var line = lines[usedLines++];

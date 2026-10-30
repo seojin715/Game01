@@ -34,6 +34,19 @@ public static class SpriteMaterial
     }
 
     /// <summary>
+    /// 어둠 기믹에서 빛이 닿는 곳만 보이는 격자 선 머티리얼을 만든다. (어둡지 않을 때는 보통 스프라이트와 같다)
+    /// 셰이더를 쓸 수 없으면 보통 스프라이트 머티리얼로 대신한다. (그때는 어두워져도 선이 다 보인다)
+    /// </summary>
+    public static Material CreateDarkGridLine(string name)
+    {
+        var shader = Shader.Find("ProjectZ/DarkGridLine");
+        if (shader != null && shader.isSupported) return new Material(shader) { name = name };
+
+        Debug.LogWarning("SpriteMaterial: ProjectZ/DarkGridLine 셰이더를 쓸 수 없어서 보통 스프라이트로 그립니다. 어두워져도 격자 선이 다 보입니다.");
+        return Create(name);
+    }
+
+    /// <summary>
     /// Bloom이 번지도록 1보다 밝게 만든 색.
     /// 렌더러의 color는 1을 넘을 수 없어서 이 값은 머티리얼에 넣어야 한다.
     /// </summary>

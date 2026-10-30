@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "title": "Megalovania",
+  "audioFile": "MEGALOVANIA.mp3",
+  "bpm": 120.0,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "dark", "time": -1.0, "enabled": false },
+    { "type": "cannon", "time": 0.0, "side": "top", "line": 1 },
+    { "type": "laser", "time": 1.0, "axis": "row", "line": 1, "side": "left" },
+    { "type": "floor", "time": 1.5, "cell": [3, 1] },
+    { "type": "homing", "time": 2.5, "side": "left", "line": 1 },
+    { "type": "boomerang", "time": 4.5, "side": "left", "line": 1, "range": 5.0 },
+    { "type": "wall", "time": 5.25, "side": "right", "size": 4 },
+    { "type": "portal", "time": 6.0, "enabled": true }
+  ]
+}

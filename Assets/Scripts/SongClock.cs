@@ -13,6 +13,8 @@ using UnityEngine.Networking;
 /// - 오디오의 재생 위치는 몇십 밀리초 단위로 끊겨서 갱신된다. 그대로 쓰면 움직임이 덜컥거리므로
 ///   매 프레임 흐른 시간으로 예측하고, 실제 재생 위치 쪽으로 조금씩 당겨서 맞춘다.
 /// - 노래 속도(pitch)가 바뀌면 시계도 그 비율로 흐른다. 슬로우가 걸려도 노래와 어긋나지 않는다.
+/// - Play를 부르면 바로 노래를 틀지 않고 준비 시간(leadIn)만큼 시계가 음수에서 0까지 먼저 흐른다.
+///   그동안 0초 근처 장애물의 발사기가 미리 들어올 수 있고, 시계가 0이 되는 순간 노래가 시작된다.
 ///
 /// 다른 스크립트가 같은 프레임에 최신 시간을 읽도록 먼저 실행한다.
 /// </summary>
@@ -29,6 +31,10 @@ public class SongClock : MonoBehaviour
 
     [Range(0f, 1f)] public float volume = 0.8f;
 
+    [Header("준비 시간")]
+    [Tooltip("노래를 틀기 전에 시계가 먼저 흐르는 시간 (초). 이 동안 곡 처음에 놓은 장애물의 발사기가 들어온다. (카운트다운이 끝난 뒤에 시작된다)")]
+    [Min(0f)] public float leadIn = 2f;
+
     [Header("시계 보정")]
     [Tooltip("예측한 시간과 실제 재생 위치가 이보다 벌어지면 바로 맞춘다 (초)")]
     [Min(0.001f)] public float resyncThreshold = 0.05f;
@@ -42,8 +48,14 @@ public class SongClock : MonoBehaviour
     /// <summary>노래를 다 불러왔는지</summary>
     public bool IsLoaded => clip != null;
 
-    /// <summary>지금 노래가 재생 중인지</summary>
+    /// <summary>노래 파일을 찾지 못했거나 불러오지 못했는지</summary>
+    public bool LoadFailed { get; private set; }
+
+    /// <summary>지금 노래가 재생 중인지 (준비 시간에는 false)</summary>
     public bool IsPlaying => source != null && source.isPlaying;
+
+    /// <summary>시계가 흐르고 있는지 (준비 시간 포함)</summary>
+    public bool IsRunning => leadingIn || IsPlaying;
 
     /// <summary>노래 길이 (초)</summary>
     public float Length => clip != null ? clip.length : 0f;
@@ -54,6 +66,7 @@ public class SongClock : MonoBehaviour
     AudioSource source;
     AudioClip clip;
     double songTime;
+    bool leadingIn;   // 노래를 틀기 전 준비 시간 중인지
 
     void Awake()
     {
@@ -73,22 +86,46 @@ public class SongClock : MonoBehaviour
         if (source != null) source.pitch = Mathf.Max(0.01f, speed);
     }
 
-    /// <summary>노래를 처음부터 재생한다.</summary>
+    /// <summary>준비 시간을 거쳐 노래를 처음부터 재생한다. 시계는 -leadIn초부터 흐른다.</summary>
     public void Play()
     {
         if (clip == null) return;
 
         source.clip = clip;
         source.volume = volume;
-        source.time = 0f;
+        source.Stop();
+
+        if (leadIn > 0f)
+        {
+            songTime = -leadIn;
+            leadingIn = true;
+            return;
+        }
+
+        StartAudio();
+    }
+
+    /// <summary>노래를 지금 시계 위치(0초 근처)부터 튼다.</summary>
+    void StartAudio()
+    {
+        leadingIn = false;
+        songTime = System.Math.Max(0.0, songTime);
+        source.time = Mathf.Min((float)songTime, Mathf.Max(0f, clip.length - 0.01f));
         source.Play();
-        songTime = 0.0;
     }
 
     void Update()
     {
         if (clip == null) return;
         source.volume = volume;
+
+        // 준비 시간: 노래 없이 시계만 흐르다가 0초가 되면 노래를 튼다. (슬로우가 걸리면 시계도 느려진다)
+        if (leadingIn)
+        {
+            songTime += Time.unscaledDeltaTime * source.pitch;
+            if (songTime >= 0.0) StartAudio();
+            return;
+        }
 
         // 멈춰 있으면 시계도 멈춘다. (끝나면 재생 위치가 0으로 돌아가므로 그 값은 읽지 않는다)
         if (!source.isPlaying) return;
@@ -114,7 +151,11 @@ public class SongClock : MonoBehaviour
     IEnumerator LoadSong()
     {
         string path = FindSongPath(songFileName);
-        if (path == null) yield break;
+        if (path == null)
+        {
+            LoadFailed = true;
+            yield break;
+        }
 
         using (var request = UnityWebRequestMultimedia.GetAudioClip(new Uri(path).AbsoluteUri, GetAudioType(path)))
         {
@@ -125,6 +166,7 @@ public class SongClock : MonoBehaviour
             if (request.result != UnityWebRequest.Result.Success)
             {
                 Debug.LogError($"SongClock: 노래를 불러오지 못했습니다. ({request.error})\n{path}", this);
+                LoadFailed = true;
                 yield break;
             }
 

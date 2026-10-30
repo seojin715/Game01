@@ -9,6 +9,9 @@ using UnityEngine;
 /// - 모든 장애물은 게임 시간이 아니라 노래 재생 위치를 기준으로 움직인다.
 ///
 /// 장애물은 일반 포탄(cannon), 레이저(laser), 바닥 포탄(floor), 유도탄(homing), 가시(spike), 부메랑(boomerang) 여섯 종류다.
+///
+/// 어둠 기믹(type "dark")도 여기서 맡는다. 어두워지면 포탄과 발사기가 더 밝게 빛나고(Bloom),
+/// 포탄·발사기·하트 주변에만 격자 선이 보이도록 빛 자리를 격자 선 셰이더에 넘긴다. (Darkness.cs)
 /// </summary>
 public class LevelPlayer : MonoBehaviour
 {
@@ -48,6 +51,9 @@ public class LevelPlayer : MonoBehaviour
     [Header("부메랑")]
     public BoomerangSettings boomerang = new BoomerangSettings();
 
+    [Header("어둠")]
+    public DarkSettings dark = new DarkSettings();
+
     /// <summary>읽어 들인 레벨. 읽지 못했으면 null.</summary>
     public LevelData Level { get; private set; }
 
@@ -55,8 +61,15 @@ public class LevelPlayer : MonoBehaviour
     readonly List<LevelObstacle> active = new List<LevelObstacle>();
     int nextIndex;
     float previousTime;
+    bool ticking;   // 처음 시계를 읽었는지 (첫 프레임의 이전 시간을 지금 시간으로 맞추려고)
     Transform container;
     ObstacleContext context;
+
+    static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    readonly List<(float time, bool on)> darkEvents = new List<(float, bool)>();   // 어둠 켜기/끄기 (시간 순)
+    readonly List<SpriteRenderer> renderers = new List<SpriteRenderer>();
+    readonly Dictionary<SpriteRenderer, bool> isMarker = new Dictionary<SpriteRenderer, bool>();   // 렌더러마다 경고 표시인지 (이름은 한 번만 읽는다)
+    Material obstacleGlowMaterial;   // 포탄과 발사기가 함께 쓰는 머티리얼. 어두울수록 1보다 밝아진다.
 
     void Awake()
     {
@@ -119,6 +132,8 @@ public class LevelPlayer : MonoBehaviour
         // 벽 이벤트를 먼저 격자에 넘긴다. 장애물이 "그 시간의 격자"에 맞춰 자리 잡아야 하기 때문이다.
         SetUpWalls();
         SetUpPortals();
+        SetUpDarkness();
+        obstacleGlowMaterial = SpriteMaterial.Create("ObstacleGlow");
 
         context = new ObstacleContext
         {
@@ -166,7 +181,8 @@ public class LevelPlayer : MonoBehaviour
 
                 case "wall":
                 case "portal":
-                    break;   // 벽 이동과 텔레포트는 위에서 격자에 넘겼다.
+                case "dark":
+                    break;   // 벽 이동, 텔레포트, 어둠은 위에서 따로 모았다.
 
                 default:
                     Debug.LogWarning($"레벨 장애물 #{i}: 모르는 종류 '{data.type}'라서 건너뜁니다.");
@@ -175,6 +191,21 @@ public class LevelPlayer : MonoBehaviour
         }
 
         schedule.Sort((a, b) => a.AppearTime.CompareTo(b.AppearTime));
+        PrewarmShapes();
+    }
+
+    /// <summary>
+    /// 모든 장애물을 한 번씩 만들었다가 바로 지운다.
+    /// 장애물이 처음 나올 때 쓰는 도형 그림(원, 고리, 삼각형 등)을 코드로 그리느라 게임 중에 멈칫하지 않도록,
+    /// 화면이 아직 비어 있는 시작 때 미리 그려 둔다. (그린 그림은 ShapeSprites가 기억해 두고 돌려쓴다)
+    /// </summary>
+    void PrewarmShapes()
+    {
+        foreach (var obstacle in schedule)
+        {
+            obstacle.Spawn();
+            obstacle.Despawn();
+        }
     }
 
     LevelObstacle CreateCannon(ObstacleData data, ObstacleContext context, int index)
@@ -308,6 +339,31 @@ public class LevelPlayer : MonoBehaviour
         grid.SetPortals(events);
     }
 
+    /// <summary>레벨의 어둠 이벤트(type "dark")를 시간 순으로 모은다. enabled가 true면 어두워지고 false면 밝아진다.</summary>
+    void SetUpDarkness()
+    {
+        darkEvents.Clear();
+        foreach (var data in Level.obstacles)
+        {
+            if (data == null || data.type == null || data.type.Trim().ToLowerInvariant() != "dark") continue;
+            darkEvents.Add((data.time, data.enabled));
+        }
+        darkEvents.Sort((a, b) => a.time.CompareTo(b.time));
+    }
+
+    /// <summary>노래 시간 t일 때 어두운 정도 (0~1). 이벤트 시간부터 transitionTime 동안 부드럽게 바뀐다.</summary>
+    float DarknessAt(float t)
+    {
+        int last = -1;
+        for (int i = 0; i < darkEvents.Count && darkEvents[i].time <= t; i++) last = i;
+        if (last < 0) return 0f;
+
+        float before = last > 0 && darkEvents[last - 1].on ? 1f : 0f;
+        float after = darkEvents[last].on ? 1f : 0f;
+        float u = Mathf.SmoothStep(0f, 1f, (t - darkEvents[last].time) / dark.transitionTime);
+        return Mathf.Lerp(before, after, u);
+    }
+
     /// <summary>
     /// 줄 번호가 그 장애물 시간의 격자에 있는지 본다. horizontal이면 가로줄(행), 아니면 세로줄(열).
     /// 벽이 들어와 없어진 줄이면 장애물을 내보내지 않는다.
@@ -331,8 +387,14 @@ public class LevelPlayer : MonoBehaviour
     void Update()
     {
         if (clock == null || !clock.IsLoaded) return;
+        if (Countdown.IsActive) return;   // 3, 2, 1을 세는 동안은 장애물을 내보내지 않는다.
 
         float time = clock.SongTime;
+        if (!ticking)
+        {
+            previousTime = time;   // 준비 시간 때문에 음수에서 시작하므로 0이 아니라 지금 시간부터 잰다.
+            ticking = true;
+        }
 
         // 카메라가 격자에 맞춰 물러나거나 다가오므로, 지금 화면 범위를 장애물에 알려 준다. (유도탄이 화면 밖을 판단할 때 쓴다)
         if (context != null) context.view = GetCameraView();
@@ -361,6 +423,64 @@ public class LevelPlayer : MonoBehaviour
         previousTime = time;
     }
 
+    /// <summary>
+    /// 장애물이 다 움직인 뒤 어둠을 적용한다.
+    /// 포탄과 발사기를 어두운 정도만큼 밝게 하고, 그 자리와 하트 자리를 빛으로 격자 선 셰이더에 넘긴다.
+    /// </summary>
+    void LateUpdate()
+    {
+        bool running = clock != null && clock.IsLoaded && ticking && !Countdown.IsActive;
+        float level = running ? DarknessAt(clock.SongTime) : 0f;
+        Darkness.Begin(level);
+
+        // 어두울수록 1보다 밝게 그려서 Bloom으로 빛나게 한다. (밝을 때는 1이라 보통과 같다)
+        Color glow = SpriteMaterial.Glow(Color.white, Mathf.Lerp(1f, dark.glowIntensity, level));
+        if (obstacleGlowMaterial != null) obstacleGlowMaterial.SetColor(ColorProperty, glow);
+        if (context != null && context.clippedMaterial != null) context.clippedMaterial.SetColor(ColorProperty, glow);
+
+        if (container != null) GatherObstacleLights(level);
+
+        if (level > 0f && heart != null && grid != null)
+        {
+            Darkness.AddPoint(heart.transform.position, dark.heartLightRadius * grid.cellSize, 1f);
+        }
+
+        Darkness.Apply();
+    }
+
+    /// <summary>
+    /// 장애물의 그림(경고 표시는 빼고)마다 빛나는 머티리얼을 입히고, 보이는 것은 그 자리를 빛으로 더한다.
+    /// 길쭉한 것(레이저 등)은 선분 빛, 나머지는 점 빛이다.
+    /// </summary>
+    void GatherObstacleLights(float level)
+    {
+        container.GetComponentsInChildren(false, renderers);
+        float radius = dark.lightRadius * grid.cellSize;
+
+        foreach (var r in renderers)
+        {
+            // 반투명 경고와 사거리 표시는 빛나지도 비추지도 않는다.
+            // (r.name은 읽을 때마다 글자를 새로 만들어서, 렌더러마다 한 번만 읽고 기억한다)
+            if (!isMarker.TryGetValue(r, out bool marker))
+            {
+                if (isMarker.Count > 4000) isMarker.Clear();   // 지워진 장애물 것이 쌓이지 않게 가끔 비운다.
+                marker = r.name == "Warning" || r.name == "RangeRibbon";
+                isMarker[r] = marker;
+            }
+            if (marker) continue;
+
+            if (obstacleGlowMaterial != null && r.sharedMaterial == ShapeSprites.UnlitMaterial) r.sharedMaterial = obstacleGlowMaterial;
+            if (level <= 0f || !r.enabled || r.color.a <= 0.01f) continue;
+
+            Bounds b = r.bounds;
+            Vector2 c = b.center;
+            Vector2 e = b.extents;
+            if (e.x > e.y * 2.5f) Darkness.AddSegment(new Vector2(c.x - e.x + e.y, c.y), new Vector2(c.x + e.x - e.y, c.y), radius + e.y, r.color.a);
+            else if (e.y > e.x * 2.5f) Darkness.AddSegment(new Vector2(c.x, c.y - e.y + e.x), new Vector2(c.x, c.y + e.y - e.x), radius + e.x, r.color.a);
+            else Darkness.AddPoint(c, radius + Mathf.Max(e.x, e.y), r.color.a);
+        }
+    }
+
     /// <summary>장애물이 하트에 닿았을 때. 무적 중이면 PlayerHealth가 무시한다.</summary>
     void OnPlayerHit(LevelObstacle obstacle)
     {
@@ -370,7 +490,7 @@ public class LevelPlayer : MonoBehaviour
             return;
         }
 
-        if (health.TakeDamage())
+        if (health.TakeDamage() && health.logHits)
         {
             Debug.Log($"맞은 장애물: {obstacle.Data}, 노래 위치 {clock.SongTime:0.00}초");
         }
@@ -393,5 +513,10 @@ public class LevelPlayer : MonoBehaviour
         active.Clear();
         if (container != null) Destroy(container.gameObject);
         if (context != null && context.clippedMaterial != null) Destroy(context.clippedMaterial);
+        if (obstacleGlowMaterial != null) Destroy(obstacleGlowMaterial);
+
+        // 어두운 채로 끝나지 않게 되돌린다.
+        Darkness.Begin(0f);
+        Darkness.Apply();
     }
 }

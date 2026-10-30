@@ -93,11 +93,12 @@ public class LevelData
 /// boomerang (부메랑): side, line, speed, range         (range 칸까지 갔다가 되돌아온다)
 /// wall   (벽 이동):   side, size, warnTime             (side 벽이 움직여 그 방향 칸 수가 size가 된다)
 /// portal (텔레포트):  enabled                           (켜면 상하좌우 끝 칸에서 반대편 벽으로 넘어갈 수 있다)
+/// dark   (어둠):      enabled                           (켜면 어두워져서 포탄·발사기·하트 주변의 격자 선만 보인다)
 /// </summary>
 [Serializable]
 public class ObstacleData
 {
-    [Tooltip("cannon, laser, floor, homing, spike, boomerang, wall, portal")]
+    [Tooltip("cannon, laser, floor, homing, spike, boomerang, wall, portal, dark")]
     public string type;
 
     [Tooltip("위험이 실제로 닿는 순간의 노래 위치 (초)")]
@@ -133,7 +134,7 @@ public class ObstacleData
     [Tooltip("벽 이동 뒤 그 방향의 칸 수. left/right 벽이면 가로 칸 수, top/bottom 벽이면 세로 칸 수")]
     public int size;
 
-    [Tooltip("텔레포트를 켤지 끌지. 적지 않으면 켠다.")]
+    [Tooltip("텔레포트나 어둠을 켤지 끌지. 적지 않으면 켠다.")]
     public bool enabled = true;
 
     /// <summary>로그에 찍을 때 종류에 맞는 필드만 보여 준다.</summary>
@@ -146,6 +147,7 @@ public class ObstacleData
             case "boomerang": return $"boomerang time={time:0.###} side={side} line={line} range={range:0.##}";
             case "wall": return $"wall time={time:0.###} side={side} size={size}";
             case "portal": return $"portal time={time:0.###} enabled={enabled}";
+            case "dark": return $"dark time={time:0.###} enabled={enabled}";
             default: return $"{type} time={time:0.###} side={side} line={line}";
         }
     }

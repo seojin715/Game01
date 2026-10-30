@@ -228,22 +228,48 @@ public static class ShapeSprites
     {
         var pixels = new Color32[width * height];
 
+        // 픽셀 모서리 점들을 먼저 한 번씩 검사해 둔다. (이웃 픽셀끼리 모서리를 같이 쓴다)
+        var corners = new bool[(width + 1) * (height + 1)];
+        for (int y = 0; y <= height; y++)
+        {
+            for (int x = 0; x <= width; x++)
+            {
+                corners[y * (width + 1) + x] = isInside((float)x / width - 0.5f, (float)y / height - 0.5f);
+            }
+        }
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                int hits = 0;
-                for (int sy = 0; sy < ShapeSamples; sy++)
+                // 네 모서리와 가운데가 모두 같으면 경계가 지나가지 않는 픽셀이라 잘게 나눠 볼 필요가 없다.
+                // 경계에 걸친 픽셀만 여러 점으로 나눠 검사해서 부드럽게 만든다. (그리는 시간이 크게 준다)
+                bool c = corners[y * (width + 1) + x];
+                bool same = corners[y * (width + 1) + x + 1] == c
+                            && corners[(y + 1) * (width + 1) + x] == c
+                            && corners[(y + 1) * (width + 1) + x + 1] == c
+                            && isInside((x + 0.5f) / width - 0.5f, (y + 0.5f) / height - 0.5f) == c;
+
+                byte alpha;
+                if (same)
                 {
-                    for (int sx = 0; sx < ShapeSamples; sx++)
+                    alpha = c ? (byte)255 : (byte)0;
+                }
+                else
+                {
+                    int hits = 0;
+                    for (int sy = 0; sy < ShapeSamples; sy++)
                     {
-                        float px = (x + (sx + 0.5f) / ShapeSamples) / width - 0.5f;
-                        float py = (y + (sy + 0.5f) / ShapeSamples) / height - 0.5f;
-                        if (isInside(px, py)) hits++;
+                        for (int sx = 0; sx < ShapeSamples; sx++)
+                        {
+                            float px = (x + (sx + 0.5f) / ShapeSamples) / width - 0.5f;
+                            float py = (y + (sy + 0.5f) / ShapeSamples) / height - 0.5f;
+                            if (isInside(px, py)) hits++;
+                        }
                     }
+                    alpha = (byte)(255 * hits / (ShapeSamples * ShapeSamples));
                 }
 
-                byte alpha = (byte)(255 * hits / (ShapeSamples * ShapeSamples));
                 pixels[y * width + x] = new Color32(255, 255, 255, alpha);
             }
         }
@@ -258,7 +284,8 @@ public static class ShapeSprites
         texture.Apply();
 
         // pixelsPerUnit을 가로 픽셀 수로 두면 스프라이트 가로가 월드 1단위가 된다.
-        var sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), width);
+        // 그림 모양을 따라 메시를 깎지 않고(FullRect) 네모 그대로 써서 만드는 시간을 줄인다.
+        var sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), width, 0, SpriteMeshType.FullRect);
         sprite.name = name;
         return sprite;
     }

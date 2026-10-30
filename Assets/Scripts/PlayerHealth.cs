@@ -21,6 +21,10 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("켜면 무적 동안 화면의 검정과 흰색이 반전된다.")]
     public bool invertScreenWhileInvincible = true;
 
+    [Header("기록")]
+    [Tooltip("켜면 맞을 때마다 콘솔에 기록한다. 에디터에서 콘솔 기록은 느려서 맞는 순간 잠깐 멈칫할 수 있으니 확인할 때만 켠다.")]
+    public bool logHits = false;
+
     [Header("무적 중 모션 블러 (잔상)")]
     [Tooltip("켜면 무적 동안 움직이는 것 뒤로 잔상이 번진다. (Renderer2D에 Afterimage Renderer Feature가 붙어 있어야 보인다)")]
     public bool motionBlurWhileInvincible = true;
@@ -117,12 +121,12 @@ public class PlayerHealth : MonoBehaviour
 
         if (IsDead)
         {
-            Debug.Log("피격! 게임오버");
+            if (logHits) Debug.Log("피격! 게임오버");
             GameOver?.Invoke();
         }
         else
         {
-            Debug.Log($"피격! 남은 목숨 {Lives}");
+            if (logHits) Debug.Log($"피격! 남은 목숨 {Lives}");
         }
 
         return true;

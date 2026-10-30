@@ -34,14 +34,11 @@ public class AfterimageRendererFeature : ScriptableRendererFeature
         // 게임 화면에만 건다. (Scene 뷰나 미리보기 창과 기억해 둔 화면을 섞지 않게)
         if (renderingData.cameraData.cameraType != CameraType.Game) return;
 
-        float persistence = MotionAfterimage.FramePersistence;
-        if (material == null || persistence <= 0f)
-        {
-            // 꺼져 있는 동안의 화면은 기억하지 않으므로, 다시 켜질 때 새로 잡게 한다.
-            pass.InvalidateHistory();
-            return;
-        }
+        if (material == null) return;
 
+        // 잔상이 꺼져 있어도(0) 패스는 늘 건다. 섞는 비율이 0이면 지금 화면 그대로라 보이는 것은 같다.
+        // 피격 때만 패스를 켜면 그 순간 화면용 텍스처를 새로 만들고 렌더링 순서를 다시 짜느라 잠깐 멈칫한다.
+        float persistence = MotionAfterimage.FramePersistence;
         pass.Setup(material, persistence);
         pass.requiresIntermediateTexture = true;   // 화면을 읽어야 하므로 중간 텍스처가 필요하다.
         renderer.EnqueuePass(pass);

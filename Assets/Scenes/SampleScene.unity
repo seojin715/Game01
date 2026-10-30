@@ -464,6 +464,7 @@ GameObject:
   - component: {fileID: 854805373}
   - component: {fileID: 854805372}
   - component: {fileID: 854805371}
+  - component: {fileID: 854805376}
   m_Layer: 0
   m_Name: Music
   m_TagString: Untagged
@@ -478,7 +479,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 854805370}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cf8478dfbef755c438ecf0ee969175f8, type: 3}
   m_Name: 
@@ -556,6 +557,7 @@ MonoBehaviour:
   songFileName: MEGALOVANIA.mp3
   playOnStart: 1
   volume: 0.8
+  leadIn: 2
   resyncThreshold: 0.05
   correctionSpeed: 5
 --- !u!82 &854805374
@@ -670,6 +672,58 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &854805376
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 854805370}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53556bff21c93b74f84c9289fdfe4809, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Countdown
+  digits:
+  - '0###0
+
+    000#0
+
+    0###0
+
+    000#0
+
+    0###0'
+  - '0###0
+
+    000#0
+
+    0###0
+
+    0#000
+
+    0###0'
+  - '00#00
+
+    0##00
+
+    00#00
+
+    00#00
+
+    0###0'
+  startDelay: 0.3
+  stepTime: 1
+  fadeTime: 0.2
+  maxFrameStep: 0.033333335
+  ghostAlpha: 0.05
+  ghostTime: 0.5
+  lineWidth: 0
+  color: {r: 1, g: 1, b: 1, a: 1}
+  glowIntensity: 1.25
+  sortingOrder: -8
+  clock: {fileID: 0}
+  grid: {fileID: 0}
 --- !u!1 &1003268475
 GameObject:
   m_ObjectHideFlags: 0
@@ -934,7 +988,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
+  levelFile: {fileID: 4900000, guid: 5a0266c385d4345498f9ee7801a9c467, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -1075,6 +1129,11 @@ MonoBehaviour:
     exitTime: 0.2
     launcherSortingOrder: 5
     boomerangSortingOrder: 20
+  dark:
+    transitionTime: 0.6
+    glowIntensity: 1.25
+    lightRadius: 0.8
+    heartLightRadius: 1.2
 --- !u!4 &1382237586
 Transform:
   m_ObjectHideFlags: 0
