@@ -187,7 +187,7 @@ MonoBehaviour:
   portalTransitionTime: 0.3
   fitCamera: 1
   cameraMargin: 0.4
-  setCameraBackground: 0
+  setCameraBackground: 1
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   targetCamera: {fileID: 0}
   clock: {fileID: 0}
@@ -934,7 +934,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: bdccdbe390f5e7c4eb471c85e55e160a, type: 3}
+  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
