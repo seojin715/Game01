@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// 코드에서 쓰는 단순 도형 스프라이트를 만들어 준다.
-/// 그림 파일 없이 흰색 도형(정사각형, 원, 고리, 삼각형, 부메랑)을 만들어 여러 곳에서 돌려쓴다.
+/// 그림 파일 없이 흰색 도형(정사각형, 원, 고리, 삼각형, 부메랑, 레이저 발사기 날개, 끝이 파인 띠)을 만들어 여러 곳에서 돌려쓴다.
 /// 모든 도형은 크기 1(월드 1단위)이고, 색은 렌더러에서 입힌다.
 /// </summary>
 public static class ShapeSprites
@@ -12,6 +12,10 @@ public static class ShapeSprites
     // 원, 고리, 삼각형을 그릴 텍스처 크기. 경계는 한 픽셀을 여러 번 나눠 검사해 부드럽게 만든다.
     const int ShapeTextureSize = 128;
     const int ShapeSamples = 4;
+
+    // 길게 늘려 쓰는 띠 텍스처 크기 (가로로 길쭉하게)
+    const int RibbonTextureWidth = 512;
+    const int RibbonTextureHeight = 64;
 
     // 삼각형 꼭짓점. 뾰족한 끝이 오른쪽(+x)을 향해서, 진행 방향 각도만큼 돌리면 그 방향을 가리킨다.
     static readonly Vector2 TriangleTip = new Vector2(0.45f, 0f);
@@ -29,6 +33,13 @@ public static class ShapeSprites
         new Vector2(-0.272f, -0.157f),  // 아래쪽 발 안쪽
         new Vector2(-0.272f, -0.45f),   // 아래쪽 발 바깥
     };
+
+    // 레이저 발사기 날개: 앞쪽(+x, 레이저가 나가는 쪽)으로 길고 뾰족한 삼각형.
+    // 안쪽 변(밑변)이 상자 아래쪽(y = -0.5)에 붙어 있고, 꼭대기는 뒤쪽으로 치우쳐 있다.
+    // 아래 날개는 위아래로 뒤집어서 쓴다.
+    static readonly Vector2 WingTip = new Vector2(0.5f, -0.5f);       // 앞쪽 뾰족한 끝
+    static readonly Vector2 WingTop = new Vector2(-0.2f, -0.145f);    // 꼭대기
+    static readonly Vector2 WingBack = new Vector2(-0.5f, -0.5f);     // 뒤쪽 끝
 
     static Sprite squareSprite;
     static readonly Dictionary<string, Sprite> shapeSprites = new Dictionary<string, Sprite>();
@@ -125,6 +136,38 @@ public static class ShapeSprites
     }
 
     /// <summary>
+    /// 레이저 발사기 날개 테두리 (속이 빈 삼각형). 앞쪽 끝이 오른쪽(+x)을 향하고 안쪽 변이 상자 아래쪽에 붙어 있다.
+    /// thickness는 테두리 두께이며 상자 크기(= 날개 길이) 대비 비율이다.
+    /// </summary>
+    public static Sprite LaserWingOutline(float thickness)
+    {
+        thickness = Mathf.Clamp(thickness, 0.01f, 0.15f);
+        return GetOrCreate($"LaserWingOutline_{Mathf.RoundToInt(thickness * 1000f)}", (x, y) =>
+        {
+            var p = new Vector2(x, y);
+            if (!InsideTri(p, WingTip, WingTop, WingBack)) return false;
+
+            float nearest = Mathf.Min(
+                DistanceToLine(p, WingTip, WingTop),
+                DistanceToLine(p, WingTop, WingBack),
+                DistanceToLine(p, WingBack, WingTip));
+            return nearest <= thickness;
+        });
+    }
+
+    /// <summary>
+    /// 오른쪽 끝이 V자로 파인 흰 띠 (리본 끝 모양). 원하는 길이와 폭으로 늘려서 쓴다. (sprite.bounds로 원래 크기를 알 수 있다)
+    /// notchFraction은 파인 깊이이며 띠 길이 대비 비율이다. 늘린 뒤에도 파인 모양이 그대로 보이도록 길쭉한 텍스처에 그린다.
+    /// </summary>
+    public static Sprite NotchedRibbon(float notchFraction)
+    {
+        notchFraction = Mathf.Clamp(notchFraction, 0f, 0.9f);
+        return GetOrCreate($"NotchedRibbon_{Mathf.RoundToInt(notchFraction * 1000f)}", (x, y) =>
+            x <= 0.5f - notchFraction * (1f - 2f * Mathf.Abs(y)),   // 가운데(y=0)가 가장 깊게 파인다.
+            RibbonTextureWidth, RibbonTextureHeight);
+    }
+
+    /// <summary>
     /// 부메랑 모양 안인지 검사한다. 머리에서 다른 꼭짓점들로 부채꼴처럼 나눈 삼각형 중 하나에 들어 있으면 안이다.
     /// (머리에서는 모든 꼭짓점이 막힘없이 보여서 이렇게 나눌 수 있다)
     /// </summary>
@@ -165,11 +208,12 @@ public static class ShapeSprites
     static float DistanceToLine(Vector2 p, Vector2 a, Vector2 b) => Mathf.Abs(Cross(b - a, p - a)) / (b - a).magnitude;
 
     /// <summary>같은 도형은 한 번만 그리고 돌려쓴다.</summary>
-    static Sprite GetOrCreate(string key, Func<float, float, bool> isInside)
+    static Sprite GetOrCreate(string key, Func<float, float, bool> isInside,
+        int width = ShapeTextureSize, int height = ShapeTextureSize)
     {
         if (!shapeSprites.TryGetValue(key, out var sprite) || sprite == null)
         {
-            sprite = Rasterize("Runtime" + key, isInside);
+            sprite = Rasterize("Runtime" + key, isInside, width, height);
             shapeSprites[key] = sprite;
         }
         return sprite;
@@ -178,33 +222,33 @@ public static class ShapeSprites
     /// <summary>
     /// 도형 판정 함수(좌표 -0.5 ~ 0.5)를 받아 흰색 + 알파 텍스처로 그린다.
     /// 한 픽셀을 여러 점으로 나눠 검사해서 경계를 부드럽게 만든다.
+    /// 가로는 월드 1단위이고, 세로는 텍스처 비율을 따른다. (정사각형이면 1 x 1)
     /// </summary>
-    static Sprite Rasterize(string name, Func<float, float, bool> isInside)
+    static Sprite Rasterize(string name, Func<float, float, bool> isInside, int width, int height)
     {
-        int size = ShapeTextureSize;
-        var pixels = new Color32[size * size];
+        var pixels = new Color32[width * height];
 
-        for (int y = 0; y < size; y++)
+        for (int y = 0; y < height; y++)
         {
-            for (int x = 0; x < size; x++)
+            for (int x = 0; x < width; x++)
             {
                 int hits = 0;
                 for (int sy = 0; sy < ShapeSamples; sy++)
                 {
                     for (int sx = 0; sx < ShapeSamples; sx++)
                     {
-                        float px = (x + (sx + 0.5f) / ShapeSamples) / size - 0.5f;
-                        float py = (y + (sy + 0.5f) / ShapeSamples) / size - 0.5f;
+                        float px = (x + (sx + 0.5f) / ShapeSamples) / width - 0.5f;
+                        float py = (y + (sy + 0.5f) / ShapeSamples) / height - 0.5f;
                         if (isInside(px, py)) hits++;
                     }
                 }
 
                 byte alpha = (byte)(255 * hits / (ShapeSamples * ShapeSamples));
-                pixels[y * size + x] = new Color32(255, 255, 255, alpha);
+                pixels[y * width + x] = new Color32(255, 255, 255, alpha);
             }
         }
 
-        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
         {
             name = name,
             wrapMode = TextureWrapMode.Clamp,
@@ -213,8 +257,8 @@ public static class ShapeSprites
         texture.SetPixels32(pixels);
         texture.Apply();
 
-        // pixelsPerUnit을 size로 두면 스프라이트 한 장이 월드 1단위가 된다.
-        var sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        // pixelsPerUnit을 가로 픽셀 수로 두면 스프라이트 가로가 월드 1단위가 된다.
+        var sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), width);
         sprite.name = name;
         return sprite;
     }

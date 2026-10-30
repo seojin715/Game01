@@ -18,6 +18,9 @@ public class ObstacleContext
     /// <summary>장애물 오브젝트를 담아 둘 부모</summary>
     public Transform container;
 
+    /// <summary>격자 밖은 그리지 않는 머티리얼. 벽 뒤에서 나오는 장애물(가시)이 벽 뒤 부분을 숨길 때 쓴다.</summary>
+    public Material clippedMaterial;
+
     /// <summary>카메라가 비추는 영역 (월드 좌표). 화면 밖 위치를 정할 때 쓴다.</summary>
     public Rect view;
 
@@ -75,20 +78,23 @@ public abstract class LevelObstacle
     protected abstract void OnSpawn();
     protected abstract void OnDespawn();
 
-    /// <summary>side 쪽 격자 가장자리 위에서, line번 줄의 한가운데 점. 발사체가 격자로 들어오는 곳이다.</summary>
-    protected static Vector2 EdgePoint(GameGrid grid, GridSide side, int line)
+    /// <summary>
+    /// 노래 시간 time일 때, side 쪽 격자 가장자리(벽) 위에서 line번 줄의 한가운데 점.
+    /// 발사체가 격자로 들어오는 곳이다. 벽이 움직이면 그 시간의 벽 위치를 쓴다.
+    /// </summary>
+    protected static Vector2 EdgePoint(GameGrid grid, GridSide side, int line, float time)
     {
-        Vector2 gridCenter = grid.transform.position;
+        var bounds = grid.BoundsAt(time);
 
         if (GridSideUtil.IsHorizontal(side))
         {
             float laneY = grid.CellToWorld(0, line).y;
-            float edgeX = gridCenter.x + (side == GridSide.Left ? -1f : 1f) * grid.Width * 0.5f;
+            float edgeX = grid.EdgeToWorldX(side == GridSide.Left ? bounds.minX : bounds.maxX);
             return new Vector2(edgeX, laneY);
         }
 
         float laneX = grid.CellToWorld(line, 0).x;
-        float edgeY = gridCenter.y + (side == GridSide.Bottom ? -1f : 1f) * grid.Height * 0.5f;
+        float edgeY = grid.EdgeToWorldY(side == GridSide.Bottom ? bounds.minY : bounds.maxY);
         return new Vector2(laneX, edgeY);
     }
 

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "title": "가시 확인 (테스트)",
+  "audioFile": "MEGALOVANIA.mp3",
+  "bpm": 120,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "spike", "time": 2.0, "side": "left", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 3.0, "side": "right", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 4.0, "side": "top", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 5.0, "side": "bottom", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+
+    { "type": "spike", "time": 7.0, "side": "left", "line": 2, "warnTime": 0.6, "holdTime": 3.0 },
+
+    { "type": "spike", "time": 11.0, "side": "left", "line": 0, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 11.5, "side": "left", "line": 1, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 12.0, "side": "left", "line": 2, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 12.5, "side": "left", "line": 3, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 13.0, "side": "left", "line": 4, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 13.5, "side": "right", "line": 4, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 14.0, "side": "right", "line": 3, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 14.5, "side": "right", "line": 2, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 15.0, "side": "right", "line": 1, "warnTime": 0.6, "holdTime": 0.3 },
+    { "type": "spike", "time": 15.5, "side": "right", "line": 0, "warnTime": 0.6, "holdTime": 0.3 },
+
+    { "type": "spike", "time": 17.0, "side": "left", "line": 0, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 17.0, "side": "left", "line": 4, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 17.0, "side": "right", "line": 0, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 17.0, "side": "right", "line": 4, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 18.0, "side": "top", "line": 0, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 18.0, "side": "top", "line": 4, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 18.0, "side": "bottom", "line": 0, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 18.0, "side": "bottom", "line": 4, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 19.0, "side": "left", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 19.0, "side": "right", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 19.0, "side": "top", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+    { "type": "spike", "time": 19.0, "side": "bottom", "line": 2, "warnTime": 0.6, "holdTime": 0.5 },
+
+    { "type": "spike", "time": 21.0, "side": "top", "line": 0, "warnTime": 0.4, "holdTime": 0.25 },
+    { "type": "spike", "time": 21.5, "side": "top", "line": 1, "warnTime": 0.4, "holdTime": 0.25 },
+    { "type": "spike", "time": 22.0, "side": "top", "line": 2, "warnTime": 0.4, "holdTime": 0.25 },
+    { "type": "spike", "time": 22.5, "side": "top", "line": 3, "warnTime": 0.4, "holdTime": 0.25 },
+    { "type": "spike", "time": 23.0, "side": "top", "line": 4, "warnTime": 0.4, "holdTime": 0.25 },
+
+    { "type": "spike", "time": 25.0, "side": "bottom", "line": 2 },
+
+    { "type": "wall", "time": 27.0, "side": "right", "size": 4 },
+    { "type": "spike", "time": 29.0, "side": "right", "line": 2, "warnTime": 0.6, "holdTime": 0.8 },
+    { "type": "spike", "time": 30.0, "side": "top", "line": 3, "warnTime": 0.6, "holdTime": 0.8 },
+    { "type": "spike", "time": 30.5, "side": "top", "line": 4, "warnTime": 0.6, "holdTime": 0.8 },
+    { "type": "wall", "time": 32.0, "side": "right", "size": 7 },
+    { "type": "spike", "time": 34.0, "side": "right", "line": 1, "warnTime": 0.6, "holdTime": 0.8 },
+    { "type": "spike", "time": 35.0, "side": "top", "line": 6, "warnTime": 0.6, "holdTime": 0.8 },
+    { "type": "wall", "time": 37.0, "side": "right", "size": 5 },
+
+    { "type": "spike", "time": 39.0, "side": "left", "line": 1, "warnTime": 0.6, "holdTime": 2.0 },
+    { "type": "spike", "time": 39.0, "side": "right", "line": 3, "warnTime": 0.6, "holdTime": 2.0 }
+  ]
+}

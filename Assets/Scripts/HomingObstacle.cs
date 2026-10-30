@@ -133,7 +133,7 @@ public class HomingObstacle : LevelObstacle
         launcherWorldSize = settings.launcherSize * cell;
         missileWorldSize = settings.missileSize * cell;
 
-        Vector2 edgePoint = EdgePoint(context.grid, side, data.line);
+        Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
         restPosition = edgePoint - inward * (settings.launcherDistance * cell);
         offscreenPosition = OutsideView(context.view, restPosition, -inward, launcherWorldSize);
 

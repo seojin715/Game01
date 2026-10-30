@@ -47,7 +47,16 @@ public class CannonSettings
     [Tooltip("발사 뒤 발사기가 남아 있는 시간")]
     [Min(0f)] public float stayTime = 0.25f;
 
-    [Tooltip("발사기가 작아지며 사라지는 시간")]
+    [Tooltip("남아 있다가 사라지기 전에 깜빡이는 시간 (바닥 포탄처럼). 0이면 깜빡이지 않는다.")]
+    [Min(0f)] public float blinkTime = 0.3f;
+
+    [Tooltip("깜빡이는 빠르기 (초당 횟수)")]
+    [Min(0.5f)] public float blinkRate = 8f;
+
+    [Tooltip("깜빡일 때 어두워지는 불투명도")]
+    [Range(0f, 1f)] public float blinkAlpha = 0.3f;
+
+    [Tooltip("깜빡인 뒤 발사기가 작아지며 사라지는 시간")]
     [Min(0.01f)] public float exitTime = 0.2f;
 
     [Header("그리는 순서")]
@@ -76,6 +85,7 @@ public class CannonObstacle : LevelObstacle
     readonly float fireTime;         // 포탄을 쏘는 노래 시간
     readonly float enterStart;
     readonly float chargeStart;
+    readonly float blinkStart;   // 사라지기 전 깜빡이기 시작
     readonly float exitStart;
     readonly float launcherWorldSize;
     readonly float ballWorldSize;
@@ -96,7 +106,7 @@ public class CannonObstacle : LevelObstacle
         ballWorldSize = settings.ballSize * cell;
 
         // 포탄이 들어오는 격자 가장자리 위의 점 (지정한 줄의 한가운데)
-        Vector2 edgePoint = EdgePoint(context.grid, side, data.line);
+        Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
 
         restPosition = edgePoint - direction * (settings.launcherDistance * cell);
         offscreenPosition = OutsideView(context.view, restPosition, -direction, launcherWorldSize);
@@ -110,7 +120,8 @@ public class CannonObstacle : LevelObstacle
         float lead = Mathf.Max(settings.leadTime, settings.enterTime + settings.chargeTime);
         enterStart = fireTime - lead;
         chargeStart = fireTime - settings.chargeTime;
-        exitStart = fireTime + settings.stayTime;
+        blinkStart = fireTime + settings.stayTime;
+        exitStart = blinkStart + settings.blinkTime;
 
         // 포탄이 반대편 화면 밖으로 완전히 나가는 시간
         Vector2 farPoint = OutsideView(context.view, restPosition, direction, ballWorldSize);
@@ -145,7 +156,7 @@ public class CannonObstacle : LevelObstacle
         UpdateBall(songTime, previousSongTime);
     }
 
-    /// <summary>발사기: 화면 밖에서 들어옴 → 수축 → 발사 → 잠시 뒤 작아지며 사라짐</summary>
+    /// <summary>발사기: 화면 밖에서 들어옴 → 수축 → 발사 → 잠시 뒤 깜빡이다가 작아지며 사라짐</summary>
     void UpdateLauncher(float t)
     {
         // 들어오기 (작고 투명하게 시작해 제자리에서 원래 크기가 된다)
@@ -162,6 +173,13 @@ public class CannonObstacle : LevelObstacle
         else if (t >= fireTime && t < fireTime + settings.recoverTime)
         {
             scale *= Mathf.Lerp(settings.chargeScale, 1f, EaseOutCubic((t - fireTime) / settings.recoverTime));
+        }
+
+        // 사라지기 전 바닥 포탄처럼 깜빡인다.
+        if (t >= blinkStart && t < exitStart)
+        {
+            bool dim = Mathf.FloorToInt((t - blinkStart) * settings.blinkRate * 2f) % 2 == 0;
+            if (dim) alpha *= settings.blinkAlpha;
         }
 
         // 사라지기

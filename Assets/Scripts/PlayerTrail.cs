@@ -59,6 +59,7 @@ public class PlayerTrail : MonoBehaviour
     readonly Stack<Ghost> pool = new Stack<Ghost>();      // 쉬고 있는 잔상
 
     HeartView view;
+    PlayerMover mover;
     Transform container;
     Vector3 lastPosition;
     float distanceSinceSpawn;
@@ -75,6 +76,7 @@ public class PlayerTrail : MonoBehaviour
     void Awake()
     {
         view = GetComponent<HeartView>();
+        mover = GetComponent<PlayerMover>();
 
         // 잔상은 하트를 따라 움직이지 않도록 하트의 자식이 아닌 별도 오브젝트에 둔다.
         container = new GameObject("PlayerTrail").transform;
@@ -212,12 +214,20 @@ public class PlayerTrail : MonoBehaviour
         foreach (var ghost in active) Release(ghost);
         active.Clear();
         distanceSinceSpawn = 0f;
+        if (mover != null) mover.Teleported -= OnTeleported;
     }
 
     void OnEnable()
     {
         // 다시 켜질 때 꺼져 있던 동안 움직인 거리만큼 잔상이 한꺼번에 생기지 않게 한다.
         lastPosition = transform.position;
+        if (mover != null) mover.Teleported += OnTeleported;
+    }
+
+    /// <summary>텔레포트로 하트가 옮겨지면 잔상 기준 위치도 같이 옮긴다. (화면을 가로질러 잔상이 생기지 않게)</summary>
+    void OnTeleported(Vector3 offset)
+    {
+        lastPosition += offset;
     }
 
     void OnDestroy()

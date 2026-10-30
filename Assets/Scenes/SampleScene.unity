@@ -152,6 +152,18 @@ MonoBehaviour:
   lineColor: {r: 1, g: 1, b: 1, a: 1}
   lineWidth: 0.04
   sortingOrder: -10
+  warningAlpha: 0.25
+  warningSortingOrder: -12
+  portalWallColor: {r: 1, g: 1, b: 1, a: 1}
+  portalWallThickness: 2
+  portalWallIntensity: 1.5
+  gateThickness: 2.5
+  gateIntensity: 1.6
+  gateFadeTime: 0.15
+  pulseTime: 0.2
+  pulseBrightness: 2
+  pulseThickness: 1.6
+  glowSortingOrder: -9
 --- !u!114 &118173239
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -167,11 +179,18 @@ MonoBehaviour:
   columns: 5
   rows: 5
   cellSize: 1
+  maxColumns: 7
+  maxRows: 7
+  wallMoveTime: 0.5
+  defaultWallWarnTime: 1
+  portalColor: {r: 1, g: 0.26666668, b: 0.26666668, a: 1}
+  portalTransitionTime: 0.3
   fitCamera: 1
   cameraMargin: 0.4
-  setCameraBackground: 1
+  setCameraBackground: 0
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   targetCamera: {fileID: 0}
+  clock: {fileID: 0}
 --- !u!4 &118173240
 Transform:
   m_ObjectHideFlags: 0
@@ -412,7 +431,11 @@ MonoBehaviour:
         m_SelectedSource:
           rid: -2
         m_Provider2DCache:
-          rid: -2
+          rid: 1228862130226200653
+    - rid: 1228862130226200653
+      type: {class: 'Provider2DCache`1[[UnityEngine.Rendering.Universal.Light2DProvider, Unity.RenderPipelines.Universal.2D.Runtime]]', ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.2D.Runtime}
+      data:
+        m_Cache: []
 --- !u!4 &619394802
 Transform:
   m_ObjectHideFlags: 0
@@ -911,7 +934,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
+  levelFile: {fileID: 4900000, guid: bdccdbe390f5e7c4eb471c85e55e160a, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -932,6 +955,9 @@ MonoBehaviour:
     chargeScale: 0.75
     recoverTime: 0.1
     stayTime: 0.25
+    blinkTime: 0.3
+    blinkRate: 8
+    blinkAlpha: 0.3
     exitTime: 0.2
     launcherSortingOrder: 5
     ballSortingOrder: 20
@@ -941,8 +967,17 @@ MonoBehaviour:
     thickness: 1
     hitScale: 0.8
     warnAlpha: 0.3
-    emitterSize: 0.25
-    emitterDistance: 0.35
+    launcherLength: 0.7
+    launcherThickness: 0.06
+    launcherDistance: 0.5
+    closedGap: 0.06
+    enterTime: 0.35
+    openTime: 0.3
+    openWobbleAmount: 0.5
+    openWobbleRate: 15
+    exitTime: 0.25
+    fireStyle: 0
+    shootTime: 0.06
     beamWidth: 0.6
     glowIntensity: 1.5
     spreadTime: 0.5
@@ -958,7 +993,8 @@ MonoBehaviour:
     fadeOutTime: 0.15
     warningSortingOrder: -5
     beamSortingOrder: 8
-    emitterSortingOrder: 6
+    coreSortingOrder: 7
+    launcherSortingOrder: 6
   floor:
     defaultWarnTime: 0.9
     defaultBlockTime: 2
@@ -1007,11 +1043,11 @@ MonoBehaviour:
     width: 0.9
     depth: 0.85
     hitScale: 0.8
+    peekDistance: 0.2
     warnAlpha: 0.3
-    appearTime: 0.1
-    extendTime: 0.08
-    overshoot: 1.15
-    retractTime: 0.15
+    warnAppearTime: 0.1
+    popTime: 0.06
+    hideTime: 0.25
     warningSortingOrder: -5
     spikeSortingOrder: 7
   boomerang:
@@ -1023,9 +1059,9 @@ MonoBehaviour:
     appearTime: 0.06
     catchTime: 0.08
     showRange: 1
-    pathWidth: 0.35
-    pathAlpha: 0.15
-    markerAlpha: 0.35
+    ribbonWidth: 0.5
+    notchDepth: 0.5
+    ribbonAlpha: 0.2
     rangeSortingOrder: -5
     launcherSize: 0.6
     launcherThickness: 0.06

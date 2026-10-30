@@ -91,11 +91,13 @@ public class LevelData
 /// homing (유도탄):    side, line, speed                (단계 7)
 /// spike  (가시):      side, line, warnTime, holdTime   (벽의 그 줄 첫 칸을 찌른다)
 /// boomerang (부메랑): side, line, speed, range         (range 칸까지 갔다가 되돌아온다)
+/// wall   (벽 이동):   side, size, warnTime             (side 벽이 움직여 그 방향 칸 수가 size가 된다)
+/// portal (텔레포트):  enabled                           (켜면 상하좌우 끝 칸에서 반대편 벽으로 넘어갈 수 있다)
 /// </summary>
 [Serializable]
 public class ObstacleData
 {
-    [Tooltip("cannon, laser, floor, homing, spike, boomerang")]
+    [Tooltip("cannon, laser, floor, homing, spike, boomerang, wall, portal")]
     public string type;
 
     [Tooltip("위험이 실제로 닿는 순간의 노래 위치 (초)")]
@@ -128,6 +130,12 @@ public class ObstacleData
     [Tooltip("부메랑이 격자 안으로 들어가 되돌아오는 지점 (칸 수). 3이면 3번째 칸 가운데에서 돌아온다. 0이거나 적지 않으면 기본값")]
     public float range;
 
+    [Tooltip("벽 이동 뒤 그 방향의 칸 수. left/right 벽이면 가로 칸 수, top/bottom 벽이면 세로 칸 수")]
+    public int size;
+
+    [Tooltip("텔레포트를 켤지 끌지. 적지 않으면 켠다.")]
+    public bool enabled = true;
+
     /// <summary>로그에 찍을 때 종류에 맞는 필드만 보여 준다.</summary>
     public override string ToString()
     {
@@ -136,6 +144,8 @@ public class ObstacleData
             case "laser": return $"laser time={time:0.###} axis={axis} line={line}";
             case "floor": return $"floor time={time:0.###} cell=[{(cell != null ? string.Join(", ", cell) : "")}]";
             case "boomerang": return $"boomerang time={time:0.###} side={side} line={line} range={range:0.##}";
+            case "wall": return $"wall time={time:0.###} side={side} size={size}";
+            case "portal": return $"portal time={time:0.###} enabled={enabled}";
             default: return $"{type} time={time:0.###} side={side} line={line}";
         }
     }

@@ -21,6 +21,19 @@ public static class SpriteMaterial
     }
 
     /// <summary>
+    /// 격자 밖은 그리지 않는 스프라이트 머티리얼을 만든다. (텔레포트로 벽을 넘어갈 때 쓴다)
+    /// 셰이더를 쓸 수 없으면 보통 스프라이트 머티리얼로 대신한다. (그때는 격자 밖도 보인다)
+    /// </summary>
+    public static Material CreateClipped(string name)
+    {
+        var shader = Shader.Find("ProjectZ/ClippedSprite");
+        if (shader != null && shader.isSupported) return new Material(shader) { name = name };
+
+        Debug.LogWarning("SpriteMaterial: ProjectZ/ClippedSprite 셰이더를 쓸 수 없어서 보통 스프라이트로 그립니다. 텔레포트할 때 격자 밖이 보일 수 있습니다.");
+        return Create(name);
+    }
+
+    /// <summary>
     /// Bloom이 번지도록 1보다 밝게 만든 색.
     /// 렌더러의 color는 1을 넘을 수 없어서 이 값은 머티리얼에 넣어야 한다.
     /// </summary>

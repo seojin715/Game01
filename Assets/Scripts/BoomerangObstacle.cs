@@ -29,17 +29,17 @@ public class BoomerangSettings
     [Min(0.01f)] public float catchTime = 0.08f;
 
     [Header("사거리 표시")]
-    [Tooltip("켜면 발사기가 들어올 때부터 부메랑이 돌아올 때까지, 날아갈 길과 되돌아오는 지점을 반투명하게 보여 준다.")]
+    [Tooltip("켜면 발사기가 들어올 때부터 부메랑이 돌아올 때까지, 날아갈 길을 끝이 V자로 파인 반투명 띠 하나로 보여 준다. 파인 곳 가운데가 되돌아오는 지점이다.")]
     public bool showRange = true;
 
-    [Tooltip("격자 가장자리에서 되돌아오는 지점까지 깔리는 띠의 폭 (칸 대비)")]
-    [Range(0.05f, 1f)] public float pathWidth = 0.35f;
+    [Tooltip("띠의 폭 (칸 대비)")]
+    [Range(0.05f, 1f)] public float ribbonWidth = 0.5f;
+
+    [Tooltip("띠 끝이 V자로 파인 깊이 (띠 폭 대비)")]
+    [Range(0f, 1.5f)] public float notchDepth = 0.5f;
 
     [Tooltip("띠의 불투명도")]
-    [Range(0f, 1f)] public float pathAlpha = 0.15f;
-
-    [Tooltip("되돌아오는 지점에 놓이는 반투명 부메랑 모양의 불투명도")]
-    [Range(0f, 1f)] public float markerAlpha = 0.35f;
+    [Range(0f, 1f)] public float ribbonAlpha = 0.2f;
 
     [Tooltip("격자 선(-10)보다 높게, 하트(10)보다 낮게")]
     public int rangeSortingOrder = -5;
@@ -89,7 +89,7 @@ public class BoomerangSettings
 /// 부메랑은 빙글빙글 돌며 줄을 따라 날아가다 점점 느려져서 range번째 칸 가운데에서 멈추고,
 /// 같은 줄로 점점 빨라지며 되돌아와 발사기로 들어간다. 가는 길과 오는 길 모두 판정한다.
 /// time은 부메랑이 처음 격자 가장자리에 닿는 순간이다.
-/// 발사기가 들어올 때부터 날아갈 길(반투명한 띠)과 되돌아오는 지점(반투명한 부메랑 모양)을 보여 준다.
+/// 발사기가 들어올 때부터 날아갈 길을 끝이 V자로 파인 반투명 띠 하나로 보여 준다. (파인 곳 가운데 = 되돌아오는 지점)
 ///
 /// 위치를 노래 시간만으로 계산한다. (일정하게 느려졌다가 같은 식으로 되돌아오는 운동)
 /// </summary>
@@ -117,8 +117,7 @@ public class BoomerangObstacle : LevelObstacle
     GameObject root;
     SpriteRenderer launcher;
     SpriteRenderer boomerang;
-    SpriteRenderer rangePath;           // 격자 가장자리에서 되돌아오는 지점까지의 반투명 띠
-    SpriteRenderer rangeMarker;         // 되돌아오는 지점의 반투명 부메랑 모양
+    SpriteRenderer rangeRibbon;         // 격자 가장자리에서 되돌아오는 지점까지의, 끝이 파인 반투명 띠
 
     public BoomerangObstacle(ObstacleData data, ObstacleContext context, BoomerangSettings settings, GridSide side, float range)
         : base(data, context)
@@ -131,7 +130,7 @@ public class BoomerangObstacle : LevelObstacle
         boomerangWorldSize = settings.size * cell;
         launcherRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(inward.y, inward.x) * Mathf.Rad2Deg);
 
-        edgePoint = EdgePoint(context.grid, side, data.line);
+        edgePoint = EdgePoint(context.grid, side, data.line, data.time);
         float toEdge = settings.launcherDistance * cell;                 // 발사기에서 격자 가장자리까지
         restPosition = edgePoint - inward * toEdge;
         offscreenPosition = OutsideView(context.view, restPosition, -inward, launcherWorldSize);
@@ -172,22 +171,27 @@ public class BoomerangObstacle : LevelObstacle
         launcher.transform.rotation = launcherRotation;   // 뾰족한 끝이 격자 쪽을 가리킨다.
         boomerang.enabled = false;
 
-        if (settings.showRange)
-        {
-            rangePath = ShapeSprites.CreateRenderer("RangePath", root.transform, ShapeSprites.Square, Context.Color, settings.rangeSortingOrder);
-            rangeMarker = ShapeSprites.CreateRenderer("RangeMarker", root.transform, ShapeSprites.Chevron, Context.Color, settings.rangeSortingOrder);
+        if (settings.showRange) CreateRangeRibbon();
+    }
 
-            // 띠는 날아가는 방향으로 길게 눕히고, 표시는 되돌아오는 쪽(발사기 쪽)을 가리키게 둔다.
-            float pathLength = Vector2.Distance(edgePoint, turnPoint);
-            rangePath.transform.position = (edgePoint + turnPoint) * 0.5f;
-            rangePath.transform.rotation = launcherRotation;
-            rangePath.transform.localScale = new Vector3(pathLength, settings.pathWidth * Context.CellSize, 1f);
-            rangePath.enabled = pathLength > 0.001f;
+    /// <summary>
+    /// 격자 가장자리에서 시작해 날아가는 방향으로 길게 눕힌 띠를 만든다.
+    /// 끝의 V자로 파인 부분 가운데가 되돌아오는 지점에 오도록, 띠 끝(양쪽 뾰족한 곳)은 그보다 파인 깊이의 절반만큼 더 나간다.
+    /// </summary>
+    void CreateRangeRibbon()
+    {
+        float width = settings.ribbonWidth * Context.CellSize;
+        float notch = settings.notchDepth * width;
+        float length = Vector2.Distance(edgePoint, turnPoint) + notch * 0.5f;
+        if (length <= 0.001f) return;
 
-            rangeMarker.transform.position = turnPoint;
-            rangeMarker.transform.rotation = launcherRotation * Quaternion.Euler(0f, 0f, 180f);
-            rangeMarker.transform.localScale = Vector3.one * boomerangWorldSize;
-        }
+        Sprite sprite = ShapeSprites.NotchedRibbon(notch / length);
+        rangeRibbon = ShapeSprites.CreateRenderer("RangeRibbon", root.transform, sprite, Context.Color, settings.rangeSortingOrder);
+
+        Vector2 size = sprite.bounds.size;
+        rangeRibbon.transform.position = edgePoint + inward * (length * 0.5f);
+        rangeRibbon.transform.rotation = launcherRotation;   // 파인 끝이 날아가는 방향을 향한다.
+        rangeRibbon.transform.localScale = new Vector3(length / size.x, width / size.y, 1f);
     }
 
     protected override void OnDespawn()
@@ -243,13 +247,12 @@ public class BoomerangObstacle : LevelObstacle
     /// <summary>사거리 표시: 발사기와 함께 나타나고, 부메랑이 발사기로 돌아오면 옅어지며 사라진다.</summary>
     void UpdateRange(float t)
     {
-        if (rangeMarker == null) return;
+        if (rangeRibbon == null) return;
 
         float alpha = EaseOutCubic((t - enterStart) / settings.enterTime);
         if (t >= returnTime) alpha *= 1f - Mathf.Clamp01((t - returnTime) / settings.exitTime);
 
-        rangePath.color = WithAlpha(Context.Color, settings.pathAlpha * alpha);
-        rangeMarker.color = WithAlpha(Context.Color, settings.markerAlpha * alpha);
+        rangeRibbon.color = WithAlpha(Context.Color, settings.ribbonAlpha * alpha);
     }
 
     /// <summary>부메랑: 돌면서 나갔다가 되돌아온다. 지나온 길 전체로 충돌을 판정한다.</summary>

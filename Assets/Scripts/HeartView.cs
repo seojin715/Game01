@@ -70,6 +70,7 @@ public class HeartView : MonoBehaviour
 
     PlayerMover mover;
     Vector2 stretch = Vector2.one;   // 지금 적용 중인 가로·세로 배율
+    SpriteRenderer wrapClone;        // 텔레포트 중 원래 쪽 벽으로 빠져나가는 하트 모습
 
     void Awake()
     {
@@ -84,6 +85,35 @@ public class HeartView : MonoBehaviour
 
         // 플레이 중에 인스펙터에서 크기와 색을 바꿔도 바로 보이게 매 프레임 적용한다.
         ApplyLook();
+        UpdateWrapClone();
+    }
+
+    /// <summary>
+    /// 텔레포트로 벽을 넘어가는 동안, 원래 쪽에서 빠져나가는 하트 모습을 복사본으로 그린다.
+    /// 하트와 복사본 모두 격자 밖은 잘려서, 한쪽 벽으로 나간 만큼 반대쪽 벽에서 들어오는 것처럼 보인다.
+    /// </summary>
+    void UpdateWrapClone()
+    {
+        bool wrapping = mover != null && mover.IsWrapping && spriteRenderer.sprite != null;
+        if (!wrapping)
+        {
+            if (wrapClone != null) wrapClone.enabled = false;
+            return;
+        }
+
+        if (wrapClone == null)
+        {
+            // 하트를 따라 움직이면 안 되므로 하트의 자식이 아닌 별도 오브젝트로 만든다.
+            wrapClone = new GameObject("HeartWrapClone").AddComponent<SpriteRenderer>();
+        }
+
+        wrapClone.enabled = true;
+        wrapClone.sprite = spriteRenderer.sprite;
+        wrapClone.sharedMaterial = spriteRenderer.sharedMaterial;
+        wrapClone.color = spriteRenderer.color;
+        wrapClone.sortingOrder = spriteRenderer.sortingOrder;
+        wrapClone.transform.SetPositionAndRotation(transform.position - mover.WrapOffset, transform.rotation);
+        wrapClone.transform.localScale = transform.localScale;
     }
 
     /// <summary>
@@ -135,8 +165,9 @@ public class HeartView : MonoBehaviour
         if (!materialsCreated)
         {
             materialsCreated = true;
-            heartMaterial = SpriteMaterial.Create("HeartMaterial");
-            GhostMaterial = SpriteMaterial.Create("HeartGhostMaterial");
+            // 텔레포트로 벽을 넘을 때 격자 밖이 잘리도록, 격자 밖을 그리지 않는 머티리얼을 쓴다.
+            heartMaterial = SpriteMaterial.CreateClipped("HeartMaterial");
+            GhostMaterial = SpriteMaterial.CreateClipped("HeartGhostMaterial");
             if (heartMaterial != null) spriteRenderer.sharedMaterial = heartMaterial;
         }
     }
@@ -173,5 +204,6 @@ public class HeartView : MonoBehaviour
     {
         if (heartMaterial != null) Destroy(heartMaterial);
         if (GhostMaterial != null) Destroy(GhostMaterial);
+        if (wrapClone != null) Destroy(wrapClone.gameObject);
     }
 }

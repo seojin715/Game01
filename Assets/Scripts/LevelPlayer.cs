@@ -56,6 +56,7 @@ public class LevelPlayer : MonoBehaviour
     int nextIndex;
     float previousTime;
     Transform container;
+    ObstacleContext context;
 
     void Awake()
     {
@@ -115,13 +116,19 @@ public class LevelPlayer : MonoBehaviour
 
         container = new GameObject("Obstacles").transform;
 
-        var context = new ObstacleContext
+        // 벽 이벤트를 먼저 격자에 넘긴다. 장애물이 "그 시간의 격자"에 맞춰 자리 잡아야 하기 때문이다.
+        SetUpWalls();
+        SetUpPortals();
+
+        context = new ObstacleContext
         {
             grid = grid,
             heart = heart,
             color = Level.GetObstacleColor(),
             container = container,
-            view = GetCameraView(),
+            // 화면 밖 위치는 격자가 가장 넓을 때의 화면을 기준으로 정한다. (카메라가 물러나도 밖이도록)
+            view = grid.ViewRectFor(grid.MaxBounds),
+            clippedMaterial = SpriteMaterial.CreateClipped("ObstacleClipped"),
             onPlayerHit = OnPlayerHit
         };
 
@@ -157,6 +164,10 @@ public class LevelPlayer : MonoBehaviour
                     AddIfValid(CreateBoomerang(data, context, i));
                     break;
 
+                case "wall":
+                case "portal":
+                    break;   // 벽 이동과 텔레포트는 위에서 격자에 넘겼다.
+
                 default:
                     Debug.LogWarning($"레벨 장애물 #{i}: 모르는 종류 '{data.type}'라서 건너뜁니다.");
                     break;
@@ -186,7 +197,10 @@ public class LevelPlayer : MonoBehaviour
         if (!TryGetSideAndLine(data, index, out var side)) return null;
 
         // range는 날아가는 방향의 칸 수 안이어야 한다. (적지 않으면 기본값)
-        int cellsAlong = GridSideUtil.IsHorizontal(side) ? grid.columns : grid.rows;
+        var bounds = grid.BoundsAt(data.time);
+        int cellsAlong = GridSideUtil.IsHorizontal(side)
+            ? bounds.LastColumn - bounds.FirstColumn + 1
+            : bounds.LastRow - bounds.FirstRow + 1;
         float range = data.range > 0f ? data.range : boomerang.defaultRange;
         if (range < 0.5f || range > cellsAlong)
         {
@@ -206,14 +220,8 @@ public class LevelPlayer : MonoBehaviour
             return false;
         }
 
-        int lineCount = GridSideUtil.IsHorizontal(side) ? grid.rows : grid.columns;
-        if (data.line < 0 || data.line >= lineCount)
-        {
-            Debug.LogWarning($"레벨 장애물 #{index} ({data}): line은 0부터 {lineCount - 1}까지입니다.");
-            return false;
-        }
-
-        return true;
+        // left/right 벽이면 가로줄, top/bottom 벽이면 세로줄이 그 시간의 격자에 있어야 한다.
+        return LineExistsAt(GridSideUtil.IsHorizontal(side), data, index);
     }
 
     LevelObstacle CreateLaser(ObstacleData data, ObstacleContext context, int index)
@@ -224,14 +232,21 @@ public class LevelPlayer : MonoBehaviour
             return null;
         }
 
-        int lineCount = horizontal ? grid.rows : grid.columns;
-        if (data.line < 0 || data.line >= lineCount)
+        // 발사기 쪽. 적지 않으면 가로줄은 왼쪽, 세로줄은 아래쪽이다.
+        GridSide side = LaserObstacle.DefaultSide(horizontal);
+        if (!string.IsNullOrWhiteSpace(data.side))
         {
-            Debug.LogWarning($"레벨 장애물 #{index} ({data}): line은 0부터 {lineCount - 1}까지입니다.");
-            return null;
+            if (!GridSideUtil.TryParse(data.side, out side) || GridSideUtil.IsHorizontal(side) != horizontal)
+            {
+                string allowed = horizontal ? "left 또는 right" : "top 또는 bottom";
+                Debug.LogWarning($"레벨 장애물 #{index} ({data}): 이 레이저의 side는 {allowed}여야 합니다. 기본 쪽에 둡니다.");
+                side = LaserObstacle.DefaultSide(horizontal);
+            }
         }
 
-        return new LaserObstacle(data, context, laser, horizontal);
+        if (!LineExistsAt(horizontal, data, index)) return null;
+
+        return new LaserObstacle(data, context, laser, horizontal, side);
     }
 
     LevelObstacle CreateFloor(ObstacleData data, ObstacleContext context, int index)
@@ -243,13 +258,69 @@ public class LevelPlayer : MonoBehaviour
         }
 
         var cell = new Vector2Int(data.cell[0], data.cell[1]);
-        if (!grid.IsInside(cell.x, cell.y))
+        var bounds = grid.BoundsAt(data.time);
+        if (!bounds.ContainsCell(cell.x, cell.y))
         {
-            Debug.LogWarning($"레벨 장애물 #{index} ({data}): cell은 x 0~{grid.columns - 1}, y 0~{grid.rows - 1} 안이어야 합니다.");
+            Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 없는 칸이라 나오지 않습니다. "
+                + $"(그때 칸 범위 x {bounds.FirstColumn}~{bounds.LastColumn}, y {bounds.FirstRow}~{bounds.LastRow})");
             return null;
         }
 
         return new FloorObstacle(data, context, floor, cell);
+    }
+
+    /// <summary>레벨의 벽 이벤트(type "wall")를 모아 격자에 넘긴다.</summary>
+    void SetUpWalls()
+    {
+        var events = new List<WallEvent>();
+        for (int i = 0; i < Level.obstacles.Length; i++)
+        {
+            var data = Level.obstacles[i];
+            if (data == null || data.type == null || data.type.Trim().ToLowerInvariant() != "wall") continue;
+
+            if (!GridSideUtil.TryParse(data.side, out var side))
+            {
+                Debug.LogWarning($"레벨 장애물 #{i} ({data}): side는 left, right, top, bottom 중 하나여야 합니다.");
+                continue;
+            }
+
+            events.Add(new WallEvent { time = data.time, side = side, size = data.size, warnTime = data.warnTime });
+        }
+
+        var problems = new List<string>();
+        grid.SetWalls(events, problems);
+        foreach (var problem in problems) Debug.LogWarning($"레벨 벽 이벤트: {problem}");
+    }
+
+    /// <summary>레벨의 텔레포트 이벤트(type "portal")를 모아 격자에 넘긴다.</summary>
+    void SetUpPortals()
+    {
+        var events = new List<PortalEvent>();
+        for (int i = 0; i < Level.obstacles.Length; i++)
+        {
+            var data = Level.obstacles[i];
+            if (data == null || data.type == null || data.type.Trim().ToLowerInvariant() != "portal") continue;
+
+            // 켜면 상하좌우 모든 벽이 반대편과 이어진다.
+            events.Add(new PortalEvent { time = data.time, enabled = data.enabled, horizontal = data.enabled, vertical = data.enabled });
+        }
+
+        grid.SetPortals(events);
+    }
+
+    /// <summary>
+    /// 줄 번호가 그 장애물 시간의 격자에 있는지 본다. horizontal이면 가로줄(행), 아니면 세로줄(열).
+    /// 벽이 들어와 없어진 줄이면 장애물을 내보내지 않는다.
+    /// </summary>
+    bool LineExistsAt(bool horizontal, ObstacleData data, int index)
+    {
+        var bounds = grid.BoundsAt(data.time);
+        bool exists = horizontal ? bounds.ContainsRow(data.line) : bounds.ContainsColumn(data.line);
+        if (exists) return true;
+
+        string range = horizontal ? $"가로줄 {bounds.FirstRow}~{bounds.LastRow}" : $"세로줄 {bounds.FirstColumn}~{bounds.LastColumn}";
+        Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 {data.line}번 줄이 없어서 나오지 않습니다. (그때 {range})");
+        return false;
     }
 
     void AddIfValid(LevelObstacle obstacle)
@@ -262,6 +333,9 @@ public class LevelPlayer : MonoBehaviour
         if (clock == null || !clock.IsLoaded) return;
 
         float time = clock.SongTime;
+
+        // 카메라가 격자에 맞춰 물러나거나 다가오므로, 지금 화면 범위를 장애물에 알려 준다. (유도탄이 화면 밖을 판단할 때 쓴다)
+        if (context != null) context.view = GetCameraView();
 
         // 등장할 때가 된 장애물을 내보낸다.
         while (nextIndex < schedule.Count && schedule[nextIndex].AppearTime <= time)
@@ -318,5 +392,6 @@ public class LevelPlayer : MonoBehaviour
         foreach (var obstacle in active) obstacle.Despawn();
         active.Clear();
         if (container != null) Destroy(container.gameObject);
+        if (context != null && context.clippedMaterial != null) Destroy(context.clippedMaterial);
     }
 }

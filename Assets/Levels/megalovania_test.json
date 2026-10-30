@@ -115,6 +115,43 @@
     { "type": "boomerang", "time": 77.5, "side": "bottom", "line": 0, "range": 4, "speed": 12 },
     { "type": "boomerang", "time": 80.0, "side": "left", "line": 1, "range": 3 },
     { "type": "boomerang", "time": 80.0, "side": "right", "line": 3, "range": 3 },
-    { "type": "boomerang", "time": 82.5, "side": "top", "line": 4, "range": 1 }
+    { "type": "boomerang", "time": 82.5, "side": "top", "line": 4, "range": 1 },
+
+    { "type": "wall", "time": 86.0, "side": "right", "size": 4 },
+    { "type": "cannon", "time": 88.0, "side": "right", "line": 2 },
+    { "type": "laser", "time": 89.0, "axis": "row", "line": 1, "warnTime": 0.9, "holdTime": 0.4 },
+    { "type": "wall", "time": 90.0, "side": "right", "size": 5 },
+
+    { "type": "wall", "time": 92.0, "side": "top", "size": 3 },
+    { "type": "cannon", "time": 93.5, "side": "top", "line": 2 },
+    { "type": "laser", "time": 94.0, "axis": "row", "line": 4, "warnTime": 0.9, "holdTime": 0.4 },
+    { "type": "floor", "time": 95.0, "cell": [2, 4] },
+    { "type": "wall", "time": 96.0, "side": "top", "size": 5 },
+
+    { "type": "wall", "time": 98.0, "side": "right", "size": 7 },
+    { "type": "cannon", "time": 100.0, "side": "right", "line": 2 },
+    { "type": "laser", "time": 101.0, "axis": "row", "line": 2, "warnTime": 0.9, "holdTime": 0.4 },
+    { "type": "floor", "time": 102.0, "cell": [6, 2] },
+    { "type": "spike", "time": 103.0, "side": "right", "line": 0 },
+    { "type": "wall", "time": 104.0, "side": "right", "size": 5 },
+
+    { "type": "wall", "time": 106.0, "side": "left", "size": 3 },
+    { "type": "boomerang", "time": 107.5, "side": "left", "line": 2, "range": 3 },
+    { "type": "wall", "time": 109.0, "side": "left", "size": 5 },
+
+    { "type": "wall", "time": 111.0, "side": "bottom", "size": 7 },
+    { "type": "laser", "time": 113.0, "axis": "col", "line": 2, "warnTime": 0.9, "holdTime": 0.4 },
+    { "type": "cannon", "time": 114.0, "side": "bottom", "line": 2 },
+    { "type": "wall", "time": 116.0, "side": "bottom", "size": 5 },
+
+    { "type": "portal", "time": 118.0, "enabled": true },
+    { "type": "cannon", "time": 120.0, "side": "top", "line": 0 },
+    { "type": "cannon", "time": 121.0, "side": "top", "line": 4 },
+    { "type": "cannon", "time": 123.0, "side": "left", "line": 0 },
+    { "type": "cannon", "time": 124.0, "side": "left", "line": 4 },
+
+    { "type": "wall", "time": 128.0, "side": "right", "size": 4 },
+    { "type": "portal", "time": 131.0, "enabled": false },
+    { "type": "wall", "time": 132.0, "side": "right", "size": 5 }
   ]
 }

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "title": "텔레포트 확인 (테스트)",
+  "audioFile": "MEGALOVANIA.mp3",
+  "bpm": 120,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "portal", "time": 1.0, "enabled": true },
+
+    { "type": "wall", "time": 15.0, "side": "right", "size": 4 },
+    { "type": "wall", "time": 23.0, "side": "right", "size": 7 },
+    { "type": "wall", "time": 31.0, "side": "right", "size": 5 },
+
+    { "type": "wall", "time": 35.0, "side": "top", "size": 3 },
+    { "type": "wall", "time": 43.0, "side": "top", "size": 5 },
+
+    { "type": "floor", "time": 47.0, "cell": [4, 2], "warnTime": 0.9, "blockTime": 6.0 },
+
+    { "type": "portal", "time": 55.0, "enabled": false },
+
+    { "type": "portal", "time": 60.0, "enabled": true }
+  ]
+}
