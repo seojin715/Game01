@@ -81,6 +81,9 @@ public class HomingSettings
     [Tooltip("유도탄을 쏘는 순간(time) 나는 소리")]
     public ObstacleSound sound = new ObstacleSound();
 
+    [Tooltip("유도탄이 터지는 순간(하트에 맞거나 화면 밖으로 나갈 때) 나는 소리. 터지는 때를 미리 알 수 없어서 Offset을 앞당겨도 터지는 순간에 난다.")]
+    public ObstacleSound explodeSound = new ObstacleSound();
+
     [Header("그리는 순서")]
     public int launcherSortingOrder = 5;
     public int missileSortingOrder = 20;
@@ -126,6 +129,8 @@ public class HomingObstacle : LevelObstacle
     Vector2 direction;
     float explodeTime;
     Vector2 explodePosition;
+    bool explodeSoundPending;   // 터지는 소리를 아직 내지 않았는지
+    float tickStartTime;        // 이번 Tick 직전의 노래 시간
 
     public HomingObstacle(ObstacleData data, ObstacleContext context, HomingSettings settings, GridSide side)
         : base(data, context)
@@ -185,8 +190,10 @@ public class HomingObstacle : LevelObstacle
         if (root == null) return;
 
         settings.sound.PlayAt(fireTime, songTime, previousSongTime);
+        tickStartTime = previousSongTime;
         UpdateLauncher(songTime);
         Simulate(songTime);
+        PlayExplodeSound(songTime);
         UpdateMissile(songTime);
         UpdateExplosion(songTime);
     }
@@ -296,8 +303,20 @@ public class HomingObstacle : LevelObstacle
         explodeTime = time;
         explodePosition = at;
 
+        // 미리보기에서 시간을 옮겨 지난 폭발을 다시 계산할 때는 소리를 내지 않는다.
+        explodeSoundPending = time > tickStartTime;
+
         // 터지는 모션과 발사기 퇴장이 모두 끝나면 지워도 된다.
         EndTime = Mathf.Max(time + settings.explosionTime, exitStart + settings.exitTime);
+    }
+
+    /// <summary>터진 뒤 Offset(0보다 작으면 바로)이 지나면 소리를 한 번 낸다.</summary>
+    void PlayExplodeSound(float t)
+    {
+        if (!explodeSoundPending || t < explodeTime + Mathf.Max(0f, settings.explodeSound.offset)) return;
+
+        explodeSoundPending = false;
+        SoundEffects.Play(settings.explodeSound.clip, settings.explodeSound.volume);
     }
 
     /// <summary>유도탄: 진행 방향으로 회전한 채 움직인다. 나타날 때 커지면서 선명해진다.</summary>

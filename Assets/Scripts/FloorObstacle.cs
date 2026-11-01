@@ -51,6 +51,9 @@ public class FloorSettings
     [Tooltip("바닥 포탄이 튀어나오는 순간(time) 나는 소리")]
     public ObstacleSound sound = new ObstacleSound();
 
+    [Tooltip("막힌 칸이 풀리는(꺼지는) 순간 나는 소리")]
+    public ObstacleSound offSound = new ObstacleSound();
+
     [Header("그리는 순서")]
     [Tooltip("격자 선(-10)보다 높게")]
     public int warningSortingOrder = -5;
@@ -127,6 +130,7 @@ public class FloorObstacle : LevelObstacle
         if (root == null) return;
 
         settings.sound.PlayAt(riseStart, songTime, previousSongTime);
+        settings.offSound.PlayAt(blockEnd, songTime, previousSongTime);
         UpdateWarning(songTime);
         UpdateBlock(songTime);
 
