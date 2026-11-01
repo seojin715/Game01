@@ -322,7 +322,7 @@ Camera:
   m_TargetDisplay: 0
   m_TargetEye: 0
   m_HDR: 1
-  m_AllowMSAA: 0
+  m_AllowMSAA: 1
   m_AllowDynamicResolution: 0
   m_ForceIntoRT: 0
   m_OcclusionCulling: 0
@@ -855,6 +855,7 @@ MonoBehaviour:
   tint: {r: 1, g: 1, b: 1, a: 1}
   glowIntensity: 1.25
   sortingOrder: 10
+  previewFlashTime: 0.25
 --- !u!212 &1003268481
 SpriteRenderer:
   serializedVersion: 3
@@ -951,6 +952,7 @@ MonoBehaviour:
   maxLives: 3
   invincibleTime: 1.5
   invertScreenWhileInvincible: 1
+  logHits: 0
   motionBlurWhileInvincible: 1
   motionBlurStrength: 0.8
   motionBlurFadeIn: 0.08
@@ -988,7 +990,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 5a0266c385d4345498f9ee7801a9c467, type: 3}
+  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -1013,6 +1015,10 @@ MonoBehaviour:
     blinkRate: 8
     blinkAlpha: 0.3
     exitTime: 0.2
+    sound:
+      clip: {fileID: 8300000, guid: 1c4ab427693891f449d2622da7243913, type: 3}
+      volume: 0.25
+      offset: -0.15
     launcherSortingOrder: 5
     ballSortingOrder: 20
   laser:
@@ -1040,6 +1046,9 @@ MonoBehaviour:
     flashTime: 0.15
     flickerAmount: 0.075
     flickerRate: 25
+    fireSound: {fileID: 8300000, guid: c41e9ae8b251b6640a05323bcf030f1d, type: 3}
+    fireVolume: 0.3
+    fireSoundOffset: -0.25
     shakeOnActivate: 1
     shakeAmount: 0.1
     shakeDuration: 0.15
@@ -1063,6 +1072,10 @@ MonoBehaviour:
     blinkRate: 8
     blinkAlpha: 0.3
     fadeOutTime: 0.15
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
     warningSortingOrder: -5
     blockSortingOrder: 7
   homing:
@@ -1088,6 +1101,10 @@ MonoBehaviour:
     stayTime: 0.3
     exitTime: 0.2
     stepTime: 0.008333334
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
     launcherSortingOrder: 5
     missileSortingOrder: 20
     explosionSortingOrder: 21
@@ -1102,6 +1119,10 @@ MonoBehaviour:
     warnAppearTime: 0.1
     popTime: 0.06
     hideTime: 0.25
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
     warningSortingOrder: -5
     spikeSortingOrder: 7
   boomerang:
@@ -1127,8 +1148,41 @@ MonoBehaviour:
     recoverTime: 0.1
     stayTime: 0.15
     exitTime: 0.2
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
     launcherSortingOrder: 5
     boomerangSortingOrder: 20
+  burst:
+    warningStyle: 0
+    rotateDegrees: 315
+    rotateAcceleration: 3
+    enterTime: 0.35
+    waitTime: 0.3
+    moveBeatsPerCell: 0.25
+    holdBeats: 2
+    flightEasing: 0.4
+    rotateTime: 0.4
+    shrinkTime: 0.15
+    shardSpeed: 9
+    waitDistance: 0.55
+    size: 0.8
+    gap: 0.035
+    shrunkGap: 0.008
+    shrinkScale: 0.88
+    hitScale: 0.75
+    pathWarnAlpha: 0.18
+    lineWarnAlpha: 0.14
+    lineWarnWidth: 0.5
+    crossWarnDelay: 0.08
+    warnAppearTime: 0.1
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
+    warningSortingOrder: -5
+    shardSortingOrder: 20
   dark:
     transitionTime: 0.6
     glowIntensity: 1.25

@@ -10,6 +10,9 @@ using UnityEngine;
 ///
 /// 장애물은 일반 포탄(cannon), 레이저(laser), 바닥 포탄(floor), 유도탄(homing), 가시(spike), 부메랑(boomerang) 여섯 종류다.
 ///
+/// 레벨 에디터 미리보기(LevelPreview)면 레벨 파일 대신 에디터의 레벨로, 요청한 시간부터 시작하고 맞아도 목숨이 줄지 않는다.
+/// 미리보기 중 에디터에서 고치거나 다른 시간을 누르면 장애물을 다시 만들어 바로 반영한다.
+///
 /// 어둠 기믹(type "dark")도 여기서 맡는다. 어두워지면 포탄과 발사기가 더 밝게 빛나고(Bloom),
 /// 포탄·발사기·하트 주변에만 격자 선이 보이도록 빛 자리를 격자 선 셰이더에 넘긴다. (Darkness.cs)
 /// </summary>
@@ -51,6 +54,9 @@ public class LevelPlayer : MonoBehaviour
     [Header("부메랑")]
     public BoomerangSettings boomerang = new BoomerangSettings();
 
+    [Header("분열탄")]
+    public BurstSettings burst = new BurstSettings();
+
     [Header("어둠")]
     public DarkSettings dark = new DarkSettings();
 
@@ -62,8 +68,10 @@ public class LevelPlayer : MonoBehaviour
     int nextIndex;
     float previousTime;
     bool ticking;   // 처음 시계를 읽었는지 (첫 프레임의 이전 시간을 지금 시간으로 맞추려고)
+    bool rebuilding;   // 미리보기에서 장애물을 다시 만드는 중 (안내 기록과 미리 그리기를 건너뛴다)
     Transform container;
     ObstacleContext context;
+    PlayerMover mover;   // 하트가 있는 칸 (target: player)
 
     static readonly int ColorProperty = Shader.PropertyToID("_Color");
     readonly List<(float time, bool on)> darkEvents = new List<(float, bool)>();   // 어둠 켜기/끄기 (시간 순)
@@ -76,6 +84,7 @@ public class LevelPlayer : MonoBehaviour
         if (clock == null) clock = FindAnyObjectByType<SongClock>();
         if (grid == null) grid = FindAnyObjectByType<GameGrid>();
         if (heart == null) heart = FindAnyObjectByType<HeartView>();
+        mover = heart != null ? heart.GetComponent<PlayerMover>() : FindAnyObjectByType<PlayerMover>();
         if (health == null) health = FindAnyObjectByType<PlayerHealth>();
         if (beatFlash == null) beatFlash = FindAnyObjectByType<BeatFlash>();
 
@@ -84,6 +93,9 @@ public class LevelPlayer : MonoBehaviour
         if (cam != null && cam.GetComponent<CameraShake>() == null) cam.gameObject.AddComponent<CameraShake>();
 
         LoadLevel();
+
+        // 레벨 에디터 미리보기면 요청한 시간부터 시작한다.
+        if (LevelPreview.Active && clock != null) clock.startTimeOverride = LevelPreview.StartTime;
 
         // SongClock은 Start에서 노래를 불러오므로, 그 전에(Awake) 곡 이름을 알려 준다.
         if (Level != null && clock != null && !string.IsNullOrWhiteSpace(Level.audioFile))
@@ -106,6 +118,13 @@ public class LevelPlayer : MonoBehaviour
 
     void LoadLevel()
     {
+        if (LevelPreview.Active)
+        {
+            Level = LevelData.FromJson(LevelPreview.LevelJson, out string previewError);
+            if (Level == null) Debug.LogError($"LevelPlayer: 미리보기 레벨을 읽지 못했습니다. {previewError}", this);
+            return;
+        }
+
         if (levelFile == null)
         {
             Debug.LogError("LevelPlayer: Level File 칸에 레벨 JSON을 넣어 주세요.", this);
@@ -140,10 +159,12 @@ public class LevelPlayer : MonoBehaviour
             grid = grid,
             heart = heart,
             color = Level.GetObstacleColor(),
+            beatLength = Level.bpm > 0f ? 60f / Level.bpm : 0.5f,
             container = container,
             // 화면 밖 위치는 격자가 가장 넓을 때의 화면을 기준으로 정한다. (카메라가 물러나도 밖이도록)
             view = grid.ViewRectFor(grid.MaxBounds),
             clippedMaterial = SpriteMaterial.CreateClipped("ObstacleClipped"),
+            burstMaterial = SpriteMaterial.CreateBurstPiece("BurstPiece"),
             onPlayerHit = OnPlayerHit
         };
 
@@ -156,27 +177,14 @@ public class LevelPlayer : MonoBehaviour
             switch (type)
             {
                 case "cannon":
-                    AddIfValid(CreateCannon(data, context, i));
-                    break;
-
                 case "laser":
-                    AddIfValid(CreateLaser(data, context, i));
-                    break;
-
                 case "floor":
-                    AddIfValid(CreateFloor(data, context, i));
-                    break;
-
                 case "homing":
-                    AddIfValid(CreateHoming(data, context, i));
-                    break;
-
                 case "spike":
-                    AddIfValid(CreateSpike(data, context, i));
-                    break;
-
                 case "boomerang":
-                    AddIfValid(CreateBoomerang(data, context, i));
+                case "burst":
+                    // target이 있으면 자리를 나타날 때 정한다. (무작위, 하트가 있는 줄)
+                    AddIfValid(string.IsNullOrWhiteSpace(data.target) ? CreateObstacle(type, data, i) : CreateTargeted(type, data, i));
                     break;
 
                 case "wall":
@@ -191,7 +199,51 @@ public class LevelPlayer : MonoBehaviour
         }
 
         schedule.Sort((a, b) => a.AppearTime.CompareTo(b.AppearTime));
-        PrewarmShapes();
+        if (!rebuilding) PrewarmShapes();   // 다시 만들 때는 도형이 이미 그려져 있다.
+    }
+
+    /// <summary>
+    /// 장애물을 모두 지우고 지금 레벨로 다시 만든다. (레벨 에디터 미리보기에서 고치거나 시간을 옮겼을 때)
+    /// 장애물은 노래 시간만으로 모습을 정하므로, 다시 만들어도 지금 시간의 모습으로 바로 이어진다.
+    /// </summary>
+    void Rebuild()
+    {
+        foreach (var obstacle in active) obstacle.Despawn();
+        active.Clear();
+        schedule.Clear();
+        nextIndex = 0;
+        ticking = false;
+
+        if (container != null) Destroy(container.gameObject);
+        if (context != null && context.clippedMaterial != null) Destroy(context.clippedMaterial);
+        if (context != null && context.burstMaterial != null) Destroy(context.burstMaterial);
+        if (obstacleGlowMaterial != null) Destroy(obstacleGlowMaterial);
+        isMarker.Clear();
+
+        rebuilding = true;
+        BuildSchedule();
+        rebuilding = false;
+    }
+
+    /// <summary>미리보기 중 에디터가 보낸 수정과 시간 이동을 반영한다.</summary>
+    void HandlePreviewRequests()
+    {
+        string json = LevelPreview.PendingLevelJson;
+        float? seek = LevelPreview.PendingSeek;
+        if (json == null && seek == null) return;
+
+        LevelPreview.PendingLevelJson = null;
+        LevelPreview.PendingSeek = null;
+
+        if (json != null)
+        {
+            var level = LevelData.FromJson(json, out string error);
+            if (level != null) Level = level;
+            else Debug.LogWarning($"LevelPlayer: 미리보기 수정을 읽지 못했습니다. {error}");
+        }
+
+        Rebuild();
+        if (seek != null) clock.PlayFrom(seek.Value);
     }
 
     /// <summary>
@@ -205,6 +257,98 @@ public class LevelPlayer : MonoBehaviour
         {
             obstacle.Spawn();
             obstacle.Despawn();
+        }
+    }
+
+    /// <summary>종류에 맞는 장애물을 만든다. 자리가 잘못됐으면 null.</summary>
+    LevelObstacle CreateObstacle(string type, ObstacleData data, int index)
+    {
+        switch (type)
+        {
+            case "cannon": return CreateCannon(data, context, index);
+            case "laser": return CreateLaser(data, context, index);
+            case "floor": return CreateFloor(data, context, index);
+            case "homing": return CreateHoming(data, context, index);
+            case "spike": return CreateSpike(data, context, index);
+            case "boomerang": return CreateBoomerang(data, context, index);
+            case "burst": return CreateBurst(data, context, index);
+            default: return null;
+        }
+    }
+
+    /// <summary>자리를 나타날 때 정하는 장애물을 만든다. (target: random, player)</summary>
+    LevelObstacle CreateTargeted(string type, ObstacleData data, int index)
+    {
+        string target = data.target.Trim().ToLowerInvariant();
+        if (target != "random" && target != "player")
+        {
+            Debug.LogWarning($"레벨 장애물 #{index} ({data}): target은 random 또는 player여야 합니다.");
+            return null;
+        }
+
+        // 나오는 시간은 자리와 상관없으므로, 임시로 한 번 자리를 정해 만들어 보고 등장 시간을 얻는다.
+        var sample = CreateObstacle(type, PlaceTarget(type, data), index);
+        if (sample == null) return null;
+
+        // 분열탄은 벽에서 먼 칸일수록 일찍 출발하므로, 어느 칸이 정해져도 늦지 않게 가장 먼 칸 기준으로 준비한다.
+        float appearTime = sample.AppearTime;
+        if (type == "burst")
+        {
+            var b = grid.BoundsAt(data.time);
+            int farthest = Mathf.Max(b.LastColumn - b.FirstColumn, b.LastRow - b.FirstRow) + 1;
+            appearTime = data.time - burst.LeadSeconds(farthest, context.beatLength);
+        }
+
+        return new TargetedObstacle(data, context, appearTime,
+            d => PlaceTarget(type, d),
+            d => CreateObstacle(type, d, index));
+    }
+
+    /// <summary>
+    /// target을 실제 자리로 바꾼 장애물 데이터를 만든다.
+    /// player면 하트가 있는 줄(바닥 포탄은 칸), random이면 그 시간 격자 안에서 무작위로 고른다.
+    /// 쪽(side)은 정해져 있으면 그대로, row/col/any면 그중에서 무작위로 고른다.
+    /// </summary>
+    ObstacleData PlaceTarget(string type, ObstacleData data)
+    {
+        var placed = JsonUtility.FromJson<ObstacleData>(JsonUtility.ToJson(data));
+        placed.target = "";
+
+        bool toPlayer = data.target.Trim().ToLowerInvariant() == "player";
+        var b = grid.BoundsAt(data.time);
+        Vector2Int heartCell = mover != null ? mover.Cell : grid.CenterCell;
+        heartCell = new Vector2Int(Mathf.Clamp(heartCell.x, b.FirstColumn, b.LastColumn), Mathf.Clamp(heartCell.y, b.FirstRow, b.LastRow));
+
+        if (type == "floor" || type == "burst")
+        {
+            placed.cell = toPlayer
+                ? new[] { heartCell.x, heartCell.y }
+                : new[] { Random.Range(b.FirstColumn, b.LastColumn + 1), Random.Range(b.FirstRow, b.LastRow + 1) };
+            if (type == "burst") placed.side = PickSide(data.side).ToString().ToLowerInvariant();   // 날아오는 쪽
+            return placed;
+        }
+
+        GridSide side = PickSide(data.side);
+        bool horizontal = GridSideUtil.IsHorizontal(side);   // 왼쪽/오른쪽이면 가로줄
+        placed.side = side.ToString().ToLowerInvariant();
+        placed.line = toPlayer
+            ? (horizontal ? heartCell.y : heartCell.x)
+            : (horizontal ? Random.Range(b.FirstRow, b.LastRow + 1) : Random.Range(b.FirstColumn, b.LastColumn + 1));
+        if (type == "laser") placed.axis = horizontal ? "row" : "col";
+        return placed;
+    }
+
+    /// <summary>row(왼쪽·오른쪽 중), col(위·아래 중), any나 빈 값(네 쪽 중)이면 무작위로 고르고, 정해져 있으면 그대로.</summary>
+    static GridSide PickSide(string text)
+    {
+        switch (text == null ? "" : text.Trim().ToLowerInvariant())
+        {
+            case "row": return Random.value < 0.5f ? GridSide.Left : GridSide.Right;
+            case "col":
+            case "column": return Random.value < 0.5f ? GridSide.Top : GridSide.Bottom;
+            default:
+                if (GridSideUtil.TryParse(text, out var side)) return side;
+                return (GridSide)Random.Range(0, 4);
         }
     }
 
@@ -280,6 +424,30 @@ public class LevelPlayer : MonoBehaviour
         return new LaserObstacle(data, context, laser, horizontal, side);
     }
 
+    LevelObstacle CreateBurst(ObstacleData data, ObstacleContext context, int index)
+    {
+        if (!GridSideUtil.TryParse(data.side, out var side))
+        {
+            Debug.LogWarning($"레벨 장애물 #{index} ({data}): side는 left, right, top, bottom 중 하나여야 합니다.");
+            return null;
+        }
+
+        if (data.cell == null || data.cell.Length != 2)
+        {
+            Debug.LogWarning($"레벨 장애물 #{index} ({data}): cell은 [x, y] 두 숫자여야 합니다.");
+            return null;
+        }
+
+        var cell = new Vector2Int(data.cell[0], data.cell[1]);
+        if (!grid.BoundsAt(data.time).ContainsCell(cell.x, cell.y))
+        {
+            if (!rebuilding) Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 없는 칸이라 나오지 않습니다.");
+            return null;
+        }
+
+        return new BurstObstacle(data, context, burst, cell, side);
+    }
+
     LevelObstacle CreateFloor(ObstacleData data, ObstacleContext context, int index)
     {
         if (data.cell == null || data.cell.Length != 2)
@@ -292,7 +460,7 @@ public class LevelPlayer : MonoBehaviour
         var bounds = grid.BoundsAt(data.time);
         if (!bounds.ContainsCell(cell.x, cell.y))
         {
-            Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 없는 칸이라 나오지 않습니다. "
+            if (!rebuilding) Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 없는 칸이라 나오지 않습니다. "
                 + $"(그때 칸 범위 x {bounds.FirstColumn}~{bounds.LastColumn}, y {bounds.FirstRow}~{bounds.LastRow})");
             return null;
         }
@@ -375,7 +543,7 @@ public class LevelPlayer : MonoBehaviour
         if (exists) return true;
 
         string range = horizontal ? $"가로줄 {bounds.FirstRow}~{bounds.LastRow}" : $"세로줄 {bounds.FirstColumn}~{bounds.LastColumn}";
-        Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 {data.line}번 줄이 없어서 나오지 않습니다. (그때 {range})");
+        if (!rebuilding) Debug.Log($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 {data.line}번 줄이 없어서 나오지 않습니다. (그때 {range})");
         return false;
     }
 
@@ -388,6 +556,7 @@ public class LevelPlayer : MonoBehaviour
     {
         if (clock == null || !clock.IsLoaded) return;
         if (Countdown.IsActive) return;   // 3, 2, 1을 세는 동안은 장애물을 내보내지 않는다.
+        if (LevelPreview.Active) HandlePreviewRequests();
 
         float time = clock.SongTime;
         if (!ticking)
@@ -403,6 +572,7 @@ public class LevelPlayer : MonoBehaviour
         while (nextIndex < schedule.Count && schedule[nextIndex].AppearTime <= time)
         {
             var obstacle = schedule[nextIndex++];
+            if (obstacle.EndTime <= time) continue;   // 중간 시간부터 시작했을 때 이미 끝난 것은 건너뛴다.
             obstacle.Spawn();
             active.Add(obstacle);
         }
@@ -437,6 +607,7 @@ public class LevelPlayer : MonoBehaviour
         Color glow = SpriteMaterial.Glow(Color.white, Mathf.Lerp(1f, dark.glowIntensity, level));
         if (obstacleGlowMaterial != null) obstacleGlowMaterial.SetColor(ColorProperty, glow);
         if (context != null && context.clippedMaterial != null) context.clippedMaterial.SetColor(ColorProperty, glow);
+        if (context != null && context.burstMaterial != null) context.burstMaterial.SetColor(ColorProperty, glow);
 
         if (container != null) GatherObstacleLights(level);
 
@@ -484,6 +655,13 @@ public class LevelPlayer : MonoBehaviour
     /// <summary>장애물이 하트에 닿았을 때. 무적 중이면 PlayerHealth가 무시한다.</summary>
     void OnPlayerHit(LevelObstacle obstacle)
     {
+        // 레벨 에디터 미리보기: 목숨은 그대로 두고, 하트를 번쩍이며 맞은 시간만 기록한다.
+        if (LevelPreview.Active)
+        {
+            if (LevelPreview.RecordHit(clock.SongTime) && heart != null) heart.Flash();
+            return;
+        }
+
         if (health == null)
         {
             Debug.Log($"피격 ({obstacle.Data}) - 씬에 PlayerHealth가 없어서 목숨은 줄지 않습니다.");
@@ -513,6 +691,7 @@ public class LevelPlayer : MonoBehaviour
         active.Clear();
         if (container != null) Destroy(container.gameObject);
         if (context != null && context.clippedMaterial != null) Destroy(context.clippedMaterial);
+        if (context != null && context.burstMaterial != null) Destroy(context.burstMaterial);
         if (obstacleGlowMaterial != null) Destroy(obstacleGlowMaterial);
 
         // 어두운 채로 끝나지 않게 되돌린다.

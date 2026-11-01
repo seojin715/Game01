@@ -90,6 +90,7 @@ public class Countdown : MonoBehaviour
         if (clock == null) clock = FindAnyObjectByType<SongClock>();
         if (grid == null) grid = FindAnyObjectByType<GameGrid>();
         if (!enabled || clock == null || grid == null || digits == null || digits.Length == 0) return;
+        if (LevelPreview.Active) return;   // 레벨 에디터 미리보기는 세지 않고 바로 시작한다.
 
         // 노래는 다 센 뒤에 직접 튼다.
         clock.playOnStart = false;

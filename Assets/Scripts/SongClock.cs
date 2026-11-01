@@ -86,18 +86,30 @@ public class SongClock : MonoBehaviour
         if (source != null) source.pitch = Mathf.Max(0.01f, speed);
     }
 
-    /// <summary>준비 시간을 거쳐 노래를 처음부터 재생한다. 시계는 -leadIn초부터 흐른다.</summary>
-    public void Play()
+    /// <summary>
+    /// 플레이를 시작할 노래 시간. 비워 두면 준비 시간(-leadIn초)부터 시작한다.
+    /// 레벨 에디터 미리보기가 원하는 시간부터 틀 때 쓴다.
+    /// </summary>
+    [NonSerialized] public float? startTimeOverride;
+
+    /// <summary>준비 시간을 거쳐 노래를 처음부터 재생한다. 시계는 -leadIn초부터 흐른다. (미리보기면 요청한 시간부터)</summary>
+    public void Play() => PlayFrom(startTimeOverride ?? -leadIn);
+
+    /// <summary>
+    /// 노래 시간 time부터 재생한다. 음수면 노래 없이 시계만 흐르다가 0초에 노래가 시작된다(준비 시간).
+    /// 재생 중에 불러도 그 시간으로 옮겨 간다.
+    /// </summary>
+    public void PlayFrom(float time)
     {
         if (clip == null) return;
 
         source.clip = clip;
         source.volume = volume;
         source.Stop();
+        songTime = time;
 
-        if (leadIn > 0f)
+        if (time < 0f)
         {
-            songTime = -leadIn;
             leadingIn = true;
             return;
         }

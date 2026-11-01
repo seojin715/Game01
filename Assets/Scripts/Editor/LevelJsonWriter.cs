@@ -76,6 +76,14 @@ public static class LevelJsonWriter
                 Optional(sb, "blockTime", o.blockTime);
                 break;
 
+            case "burst":
+                int burstX = o.cell != null && o.cell.Length > 0 ? o.cell[0] : 0;
+                int burstY = o.cell != null && o.cell.Length > 1 ? o.cell[1] : 0;
+                sb.Append(", \"cell\": [").Append(burstX).Append(", ").Append(burstY).Append(']');
+                sb.Append(", \"side\": ").Append(Text(o.side));
+                Optional(sb, "speed", o.speed);
+                break;
+
             case "wall":
                 sb.Append(", \"side\": ").Append(Text(o.side));
                 sb.Append(", \"size\": ").Append(o.size);
@@ -92,6 +100,10 @@ public static class LevelJsonWriter
                 SideLine(sb, o);
                 break;
         }
+
+        // 자리를 나타날 때 정하는 장애물(target)과 발사기가 날아오는 쪽(enterFrom)은 정했을 때만 적는다.
+        if (!string.IsNullOrEmpty(o.target)) sb.Append(", \"target\": ").Append(Text(o.target));
+        if (!string.IsNullOrEmpty(o.enterFrom)) sb.Append(", \"enterFrom\": ").Append(Text(o.enterFrom));
 
         sb.Append(" }");
         return sb.ToString();

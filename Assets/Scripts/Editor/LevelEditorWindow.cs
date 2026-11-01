@@ -15,6 +15,10 @@ using UnityEngine;
 /// 오른쪽: 고른 장애물의 설정 (격자 그림에서 위치 고르기) → LevelEditorWindow.Properties.cs
 ///
 /// 결과는 Assets/Levels의 JSON으로 저장하고, 게임(LevelPlayer)이 그대로 읽는다.
+///
+/// 미리보기: ▶ 미리보기를 누르면 플레이 모드로 들어가 주황 커서 시간부터 실제 게임 화면으로 보여 준다. (LevelPreview)
+/// 저장하지 않은 내용도 그대로 나오고, 미리보기 중에 고치거나 눈금을 누르면 멈추지 않고 바로 반영된다.
+/// 맞아도 목숨은 줄지 않고, 맞은 곳은 타임라인 위에 빨간 표시로 남는다.
 /// 편집한 내용은 창에 직렬화해 두어서 Ctrl+Z로 되돌릴 수 있고, 스크립트가 다시 컴파일돼도 남는다.
 /// </summary>
 public partial class LevelEditorWindow : EditorWindow
@@ -24,8 +28,10 @@ public partial class LevelEditorWindow : EditorWindow
     static readonly string[] AudioExtensions = { ".mp3", ".wav", ".ogg", ".aif", ".aiff" };
 
     /// <summary>장애물을 놓거나 옮길 때 시간을 맞추는 단위</summary>
-    enum SnapMode { Beat1, Beat2, Beat4, Free }
-    static readonly string[] SnapLabels = { "1박", "1/2박", "1/4박", "자유 (초)" };
+    /// (저장된 창 설정이 바뀌지 않도록 새 단위는 뒤에 붙였다. 메뉴에 보이는 순서는 SnapOrder)
+    enum SnapMode { Beat1, Beat2, Beat4, Free, Beat3, Beat6, Beat8, Beat16, Beat12 }
+    static readonly SnapMode[] SnapOrder = { SnapMode.Beat1, SnapMode.Beat2, SnapMode.Beat3, SnapMode.Beat4, SnapMode.Beat6, SnapMode.Beat8, SnapMode.Beat12, SnapMode.Beat16, SnapMode.Free };
+    static readonly string[] SnapLabels = { "1박", "1/2박", "1/3박 (셋잇단)", "1/4박", "1/6박", "1/8박", "1/12박", "1/16박", "자유 (초)" };
 
     // 편집 중인 레벨. 장애물은 편집하기 쉽게 리스트로 따로 들고 있다가 저장할 때 합친다.
     [SerializeField] string levelPath = "";
@@ -41,6 +47,18 @@ public partial class LevelEditorWindow : EditorWindow
     [SerializeField] float cursorTime;               // 붙여넣기와 + 버튼이 쓰는 시간 (주황 세로선)
     [SerializeField] Vector2 rowsScroll;
     [SerializeField] Vector2 propertiesScroll;
+
+    // 반복 배치 설정
+    [SerializeField] float repeatInterval = 1f;      // 간격 (박 또는 초)
+    [SerializeField] bool repeatInBeats = true;      // 간격 단위가 박인지
+    [SerializeField] int repeatCount = 4;            // 더 놓을 개수
+    [SerializeField] int repeatLineStep;             // 반복마다 줄을 몇 칸 옮길지
+    [SerializeField] Vector2Int repeatCellStep;      // 반복마다 바닥 포탄 칸을 몇 칸 옮길지
+
+    // 미리보기 중 고친 내용을 게임에 보내기 위한 표시
+    int editRevision;        // 고칠 때마다 1씩 오른다
+    int sentRevision;        // 마지막으로 게임에 보낸 번호
+    double lastEditTime;     // 마지막으로 고친 때 (끄는 동안 너무 자주 보내지 않게)
 
     // 복사한 장애물 (창을 닫아도 에디터를 켜 둔 동안 남는다)
     static readonly List<ObstacleData> clipboard = new List<ObstacleData>();
@@ -72,6 +90,7 @@ public partial class LevelEditorWindow : EditorWindow
 
     void OnUndoRedo()
     {
+        MarkEdited();
         selection.RemoveAll(i => i < 0 || i >= obstacles.Count);
         UpdateTitle();
         Repaint();
@@ -92,8 +111,70 @@ public partial class LevelEditorWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.LabelField(
-            "더블클릭: 추가 · 끌기: 이동 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기",
+            "더블클릭: 추가 · 끌기: 이동 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기 · 미리보기 중 눈금 클릭: 그 시간으로 이동",
             EditorStyles.miniLabel);
+    }
+
+    /// <summary>미리보기 중이면 고친 내용을 게임에 보내고, 재생 위치가 움직이도록 계속 다시 그린다.</summary>
+    void Update()
+    {
+        if (!IsPreviewing) return;
+
+        // 끄는 동안처럼 연달아 고칠 때는 잠깐 멈춘 뒤에 한 번만 보낸다. (보낼 때마다 장애물을 다시 만들기 때문)
+        if (editRevision != sentRevision && EditorApplication.timeSinceStartup - lastEditTime > 0.25 && GUIUtility.hotControl == 0)
+        {
+            sentRevision = editRevision;
+            LevelPreview.PendingLevelJson = BuildJson();
+        }
+
+        Repaint();
+    }
+
+    // ───────────────────────── 미리보기 ─────────────────────────
+
+    /// <summary>지금 플레이 모드에서 이 창의 미리보기가 돌고 있는지</summary>
+    static bool IsPreviewing => EditorApplication.isPlaying && LevelPreview.Active;
+
+    /// <summary>도구 막대의 미리보기 버튼들. 멈춰 있으면 ▶, 미리보기 중이면 일시정지와 정지.</summary>
+    void DrawPreviewButtons()
+    {
+        if (IsPreviewing)
+        {
+            bool paused = EditorApplication.isPaused;
+            if (GUILayout.Button(paused ? "▶ 계속" : "❚❚ 일시정지", EditorStyles.toolbarButton, GUILayout.Width(70f))) EditorApplication.isPaused = !paused;
+            if (GUILayout.Button("■ 정지", EditorStyles.toolbarButton, GUILayout.Width(50f))) EditorApplication.isPlaying = false;
+            GUILayout.Label($"맞은 횟수 {LevelPreview.HitTimes.Count}", EditorStyles.miniLabel);
+            return;
+        }
+
+        // 그냥 ▶로 플레이 중일 때는 미리보기를 시작할 수 없다. (먼저 멈춰야 한다)
+        using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))
+        {
+            var content = new GUIContent("▶ 미리보기", $"주황 커서 시간({cursorTime:0.00}초)부터 실제 게임 화면으로 봅니다. 맞아도 목숨은 줄지 않습니다.");
+            if (GUILayout.Button(content, EditorStyles.toolbarButton, GUILayout.Width(80f))) StartPreview();
+        }
+    }
+
+    /// <summary>지금 편집 중인 레벨과 커서 시간을 요청 파일로 넘기고 플레이 모드로 들어간다.</summary>
+    void StartPreview()
+    {
+        if (EditorApplication.isPlaying) return;
+        if (FindAnyObjectByType<LevelPlayer>() == null)
+        {
+            ShowNotification(new GUIContent("씬에 Level Player가 없습니다. 게임 씬을 열어 주세요."));
+            return;
+        }
+
+        LevelPreview.WriteRequest(cursorTime, BuildJson());
+        sentRevision = editRevision;
+        EditorApplication.isPlaying = true;
+    }
+
+    /// <summary>고쳤다고 표시한다. 미리보기 중이면 Update가 게임에 보낸다.</summary>
+    void MarkEdited()
+    {
+        editRevision++;
+        lastEditTime = EditorApplication.timeSinceStartup;
     }
 
     // ───────────────────────── 위쪽 도구 막대와 레벨 정보 ─────────────────────────
@@ -112,8 +193,12 @@ public partial class LevelEditorWindow : EditorWindow
         GUILayout.Label(fileLabel + (dirty ? "  *" : ""), EditorStyles.miniLabel);
         GUILayout.FlexibleSpace();
 
+        DrawPreviewButtons();
+        GUILayout.Space(8f);
+
         GUILayout.Label("배치 단위", EditorStyles.miniLabel);
-        snapMode = (SnapMode)EditorGUILayout.Popup((int)snapMode, SnapLabels, EditorStyles.toolbarPopup, GUILayout.Width(80f));
+        int snapIndex = Mathf.Max(0, Array.IndexOf(SnapOrder, snapMode));
+        snapMode = SnapOrder[EditorGUILayout.Popup(snapIndex, SnapLabels, EditorStyles.toolbarPopup, GUILayout.Width(100f))];
 
         GUILayout.Space(8f);
         GUILayout.Label("확대", EditorStyles.miniLabel);
@@ -262,12 +347,18 @@ public partial class LevelEditorWindow : EditorWindow
         return WriteTo(path);
     }
 
-    bool WriteTo(string path)
+    /// <summary>지금 편집 중인 레벨을 JSON 글자로 만든다. 장애물은 시간 순으로 정렬한다. (같은 시간이면 원래 순서대로)</summary>
+    string BuildJson()
     {
-        // 시간 순으로 정렬해서 쓴다. (같은 시간이면 원래 순서대로)
         level.obstacles = obstacles.Select((o, i) => (o, i)).OrderBy(p => p.o.time).ThenBy(p => p.i).Select(p => p.o).ToArray();
         string json = LevelJsonWriter.Write(level);
         level.obstacles = new ObstacleData[0];
+        return json;
+    }
+
+    bool WriteTo(string path)
+    {
+        string json = BuildJson();
 
         try
         {
@@ -324,7 +415,47 @@ public partial class LevelEditorWindow : EditorWindow
     {
         Undo.RecordObject(this, name);
         dirty = true;
+        MarkEdited();
         UpdateTitle();
+    }
+
+    /// <summary>
+    /// 고른 장애물들을 간격(박 또는 초)마다 repeatCount개 더 놓는다.
+    /// 줄 이동을 정하면 반복할 때마다 줄(바닥 포탄은 칸)을 그만큼씩 옮긴다.
+    /// </summary>
+    void RepeatSelection()
+    {
+        float step = repeatInBeats ? repeatInterval * BeatLength : repeatInterval;
+        var sources = selection.Where(i => i >= 0 && i < obstacles.Count).Select(i => obstacles[i]).ToList();
+        if (step <= 0f || sources.Count == 0 || repeatCount < 1) return;
+
+        RecordUndo("반복 배치");
+        var created = new List<int>(selection);
+        for (int k = 1; k <= repeatCount; k++)
+        {
+            foreach (var source in sources)
+            {
+                var o = Clone(source);
+                o.time = ClampTime(RoundTime(source.time + step * k));
+
+                if (o.type == "floor" || o.type == "burst")
+                {
+                    if (o.cell != null && o.cell.Length >= 2) o.cell = new[] { o.cell[0] + repeatCellStep.x * k, o.cell[1] + repeatCellStep.y * k };
+                }
+                else if (o.type != "wall" && o.type != "portal" && o.type != "dark")
+                {
+                    o.line += repeatLineStep * k;
+                }
+
+                obstacles.Add(o);
+                created.Add(obstacles.Count - 1);
+            }
+        }
+
+        // 원래 것과 새로 놓은 것을 모두 고른 상태로 둔다. (한꺼번에 옮기거나 지우기 쉽게)
+        selection = created;
+        ShowNotification(new GUIContent($"{sources.Count * repeatCount}개를 더 놓았습니다"));
+        Repaint();
     }
 
     /// <summary>Ctrl+C, Ctrl+V, Delete, Ctrl+A를 처리한다. 글자 칸에 입력 중이면 그쪽에 맡긴다.</summary>
@@ -415,6 +546,7 @@ public partial class LevelEditorWindow : EditorWindow
             case "boomerang": o.side = "right"; break;
             case "laser": o.axis = "row"; o.side = "left"; break;
             case "floor": o.cell = new[] { 2, 2 }; o.side = ""; break;
+            case "burst": o.cell = new[] { 2, 2 }; o.side = "left"; break;
             case "wall": o.side = "right"; o.size = 5; break;
             case "portal":
             case "dark": o.side = ""; o.enabled = true; break;
@@ -483,6 +615,11 @@ public partial class LevelEditorWindow : EditorWindow
                 case SnapMode.Beat1: return BeatLength;
                 case SnapMode.Beat2: return BeatLength / 2f;
                 case SnapMode.Beat4: return BeatLength / 4f;
+                case SnapMode.Beat3: return BeatLength / 3f;
+                case SnapMode.Beat6: return BeatLength / 6f;
+                case SnapMode.Beat8: return BeatLength / 8f;
+                case SnapMode.Beat12: return BeatLength / 12f;
+                case SnapMode.Beat16: return BeatLength / 16f;
                 default: return 0f;
             }
         }

@@ -46,6 +46,10 @@ public class HeartView : MonoBehaviour
     [Tooltip("그리는 순서. 격자 선보다 높게 둔다.")]
     public int sortingOrder = 10;
 
+    [Header("미리보기 피격 표시")]
+    [Tooltip("레벨 에디터 미리보기에서 맞았을 때 하트가 하얗게 번쩍였다가 돌아오는 시간 (실제 초)")]
+    [Min(0.01f)] public float previewFlashTime = 0.25f;
+
     /// <summary>잔상이 쓰는 하트 이미지</summary>
     public Sprite Sprite => spriteRenderer != null ? spriteRenderer.sprite : sprite;
 
@@ -71,6 +75,10 @@ public class HeartView : MonoBehaviour
     PlayerMover mover;
     Vector2 stretch = Vector2.one;   // 지금 적용 중인 가로·세로 배율
     SpriteRenderer wrapClone;        // 텔레포트 중 원래 쪽 벽으로 빠져나가는 하트 모습
+    float flashLeft;                 // 미리보기 피격 번쩍임이 남은 시간
+
+    /// <summary>하트를 잠깐 하얗게 번쩍이게 한다. (레벨 에디터 미리보기에서 맞았을 때)</summary>
+    public void Flash() => flashLeft = previewFlashTime;
 
     void Awake()
     {
@@ -81,6 +89,7 @@ public class HeartView : MonoBehaviour
 
     void LateUpdate()
     {
+        if (flashLeft > 0f) flashLeft -= Time.unscaledDeltaTime;
         UpdateStretch();
 
         // 플레이 중에 인스펙터에서 크기와 색을 바꿔도 바로 보이게 매 프레임 적용한다.
@@ -196,7 +205,8 @@ public class HeartView : MonoBehaviour
         transform.localScale = new Vector3(fit.x * stretch.x, fit.y * stretch.y, 1f);
 
         // 렌더러 색은 1을 넘을 수 없으므로, 1보다 밝은 색은 머티리얼에 넣어 Bloom이 받게 한다.
-        if (heartMaterial != null) heartMaterial.SetColor(ColorProperty, SpriteMaterial.Glow(tint, glowIntensity));
+        Color look = flashLeft > 0f ? Color.Lerp(tint, Color.white, flashLeft / previewFlashTime) : tint;
+        if (heartMaterial != null) heartMaterial.SetColor(ColorProperty, SpriteMaterial.Glow(look, glowIntensity));
         spriteRenderer.sortingOrder = sortingOrder;
     }
 

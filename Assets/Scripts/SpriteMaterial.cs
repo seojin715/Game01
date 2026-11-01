@@ -46,6 +46,13 @@ public static class SpriteMaterial
         return Create(name);
     }
 
+    /// <summary>분열탄 조각을 계산으로 깔끔하게 그리는 머티리얼. 셰이더를 쓸 수 없으면 null이다.</summary>
+    public static Material CreateBurstPiece(string name)
+    {
+        var shader = Shader.Find("ProjectZ/BurstPiece");
+        return shader != null && shader.isSupported ? new Material(shader) { name = name } : null;
+    }
+
     /// <summary>
     /// Bloom이 번지도록 1보다 밝게 만든 색.
     /// 렌더러의 color는 1을 넘을 수 없어서 이 값은 머티리얼에 넣어야 한다.

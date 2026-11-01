@@ -6,9 +6,8 @@
   "offset": 0.0,
   "obstacleColor": "#ffffff",
   "obstacles": [
-    { "type": "cannon", "time": 0.25, "side": "top", "line": 2 },
-    { "type": "cannon", "time": 0.5, "side": "top", "line": 1 },
-    { "type": "cannon", "time": 0.75, "side": "top", "line": 0 },
-    { "type": "cannon", "time": 2.0, "side": "top", "line": 2 }
+    { "type": "cannon", "time": 0.0, "side": "left", "line": 2 },
+    { "type": "cannon", "time": 0.0, "side": "bottom", "line": 2 },
+    { "type": "spike", "time": 0.0, "side": "left", "line": 0 }
   ]
 }

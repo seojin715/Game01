@@ -76,6 +76,10 @@ public class BoomerangSettings
     [Tooltip("발사기가 작아지며 사라지는 시간")]
     [Min(0.01f)] public float exitTime = 0.2f;
 
+    [Header("소리")]
+    [Tooltip("부메랑을 쏘는 순간 나는 소리")]
+    public ObstacleSound sound = new ObstacleSound();
+
     [Header("그리는 순서")]
     public int launcherSortingOrder = 5;
 
@@ -133,7 +137,7 @@ public class BoomerangObstacle : LevelObstacle
         edgePoint = EdgePoint(context.grid, side, data.line, data.time);
         float toEdge = settings.launcherDistance * cell;                 // 발사기에서 격자 가장자리까지
         restPosition = edgePoint - inward * toEdge;
-        offscreenPosition = OutsideView(context.view, restPosition, -inward, launcherWorldSize);
+        offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -inward), launcherWorldSize);
 
         // 발사기에서 되돌아오는 지점까지의 거리. range번째 칸의 가운데에서 멈춘다.
         float turnDistance = toEdge + (range - 0.5f) * cell;
@@ -204,6 +208,7 @@ public class BoomerangObstacle : LevelObstacle
     {
         if (root == null) return;
 
+        settings.sound.PlayAt(fireTime, songTime, previousSongTime);
         UpdateLauncher(songTime);
         UpdateRange(songTime);
         UpdateBoomerang(songTime, previousSongTime);

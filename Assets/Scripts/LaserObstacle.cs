@@ -95,6 +95,17 @@ public class LaserSettings
     [Tooltip("떨리는 빠르기 (초당 횟수)")]
     [Min(0.1f)] public float flickerRate = 25f;
 
+    [Header("소리")]
+    [Tooltip("레이저가 켜지는 순간 나는 소리 (Assets/Audio/SFX). 비워 두면 소리가 나지 않는다.")]
+    public AudioClip fireSound;
+
+    [Tooltip("발사 소리 크기 (0~1). 배경 노래를 가리지 않게 작게 둔다. 여러 줄이 동시에 켜져도 한 번만 난다.")]
+    [Range(0f, 1f)] public float fireVolume = 0.15f;
+
+    [Tooltip("발사 소리를 레이저가 켜지는 순간보다 얼마나 일찍(-) 또는 늦게(+) 낼지 (노래 시간, 초). "
+           + "소리가 서서히 커지는 파일이면 가장 큰 부분이 박자에 오도록 앞당긴다. 예: -0.1이면 0.1초 먼저")]
+    [Range(-0.5f, 0.5f)] public float fireSoundOffset = -0.1f;
+
     [Header("화면 흔들림")]
     [Tooltip("켜면 레이저가 켜지는 순간 화면이 살짝 흔들린다. (여러 줄이 동시에 켜져도 더해지지 않는다)")]
     public bool shakeOnActivate = true;
@@ -212,7 +223,7 @@ public class LaserObstacle : LevelObstacle
         origin = nearEdge - direction * (settings.launcherDistance * cell);
         beamLength = gridLength + settings.launcherDistance * cell;
         wingLength = settings.launcherLength * cell;
-        offscreen = OutsideView(context.view, origin, -direction, wingLength);
+        offscreen = OutsideView(context.view, origin, EnterDirection(data, -direction), wingLength);
 
         beamThickness = settings.thickness * cell;
         coreDiameter = beamThickness * settings.beamWidth;
@@ -278,6 +289,13 @@ public class LaserObstacle : LevelObstacle
         if (root == null) return;
 
         // 켜지는 순간을 지나는 프레임에 화면을 살짝 흔든다.
+        // 소리 낼 때(켜지는 순간 + 소리 시작 조절)를 지나는 프레임에 발사 소리를 낸다.
+        float soundTime = activeStart + settings.fireSoundOffset;
+        if (previousSongTime < soundTime && songTime >= soundTime && songTime < activeEnd)
+        {
+            SoundEffects.Play(settings.fireSound, settings.fireVolume);
+        }
+
         if (settings.shakeOnActivate && previousSongTime < activeStart && songTime >= activeStart && songTime < activeEnd)
         {
             CameraShake.Request(settings.shakeAmount * Context.CellSize, settings.shakeDuration);

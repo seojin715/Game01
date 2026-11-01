@@ -36,12 +36,26 @@ public partial class LevelEditorWindow
         public HomingSettings homing;
         public SpikeSettings spike;
         public BoomerangSettings boomerang;
+        public BurstSettings burst;
         public float wallWarnTime, wallMoveTime;
         public int columns, rows, maxColumns, maxRows;
         public float leadIn;   // 노래 시작 전 준비 시간 (SongClock)
     }
 
     enum PickMode { SideLine, Laser, Cell, Preview }
+
+    // 위치 정하는 방식 (target)
+    static readonly string[] TargetKeys = { "", "random", "player" };
+    static readonly string[] TargetLineNames = { "직접 고르기", "랜덤 위치", "플레이어 줄" };
+    static readonly string[] TargetCellNames = { "직접 고르기", "랜덤 칸", "플레이어 칸" };
+
+    // 랜덤·플레이어 줄일 때 어느 쪽에서 올지
+    static readonly string[] TargetSideKeys = { "any", "row", "col", "left", "right", "top", "bottom" };
+    static readonly string[] TargetSideNames = { "아무 쪽 (행·열 아무거나)", "행: 왼쪽·오른쪽 중", "열: 위·아래 중", "행: 왼쪽에서", "행: 오른쪽에서", "열: 위에서", "열: 아래에서" };
+
+    // 발사기가 날아오는 쪽 (enterFrom)
+    static readonly string[] EnterKeys = { "", "left", "right", "top", "bottom" };
+    static readonly string[] EnterNames = { "발사기 뒤쪽 (기본)", "왼쪽에서", "오른쪽에서", "위에서", "아래에서" };
 
     Defaults defaults;
     readonly List<ObstacleData> walls = new List<ObstacleData>();   // 벽 이동 이벤트 (시간 순)
@@ -50,6 +64,9 @@ public partial class LevelEditorWindow
     // (같은 프레임 안에서 그리는 칸 수가 달라지면 유니티 GUI 배치가 어긋나기 때문)
     int panelMode;    // 0: 없음, 1: 하나, 2: 여러 개
     int panelIndex;
+    bool panelHasFloor;   // 고른 것 중에 바닥 포탄이 있는지 (반복 배치에 칸 이동을 보여 줄지)
+
+    SongClock sceneClock;   // 씬의 노래 시계 (미리보기 중 재생 위치를 읽는다)
 
     /// <summary>OnGUI마다 처음에 부른다. 벽 이벤트와 씬 기본값을 새로 모은다.</summary>
     void PrepareFrame()
@@ -61,6 +78,7 @@ public partial class LevelEditorWindow
         var player = FindAnyObjectByType<LevelPlayer>();
         var grid = FindAnyObjectByType<GameGrid>();
         var clock = FindAnyObjectByType<SongClock>();
+        sceneClock = clock;
         defaults = new Defaults
         {
             leadIn = clock != null ? clock.leadIn : 2f,
@@ -70,6 +88,7 @@ public partial class LevelEditorWindow
             homing = player != null ? player.homing : new HomingSettings(),
             spike = player != null ? player.spike : new SpikeSettings(),
             boomerang = player != null ? player.boomerang : new BoomerangSettings(),
+            burst = player != null ? player.burst : new BurstSettings(),
             wallWarnTime = grid != null ? grid.defaultWallWarnTime : 1f,
             wallMoveTime = grid != null ? grid.wallMoveTime : 0.5f,
             columns = grid != null ? grid.columns : 5,
@@ -83,6 +102,7 @@ public partial class LevelEditorWindow
             selection.RemoveAll(i => i < 0 || i >= obstacles.Count);
             panelMode = selection.Count == 0 ? 0 : selection.Count == 1 ? 1 : 2;
             panelIndex = selection.Count > 0 ? selection[0] : -1;
+            panelHasFloor = selection.Any(i => obstacles[i].type == "floor" || obstacles[i].type == "burst");
         }
     }
 
@@ -124,7 +144,12 @@ public partial class LevelEditorWindow
             case "dark":
                 return true;
 
+            // 자리를 나타날 때 정하는 장애물은 그때 있는 줄·칸에서 고르므로 늘 나온다.
+            case var _ when !string.IsNullOrEmpty(o.target):
+                return true;
+
             case "floor":
+            case "burst":
                 return o.cell != null && o.cell.Length >= 2 && b.HasColumn(o.cell[0]) && b.HasRow(o.cell[1]);
 
             case "laser":
@@ -187,6 +212,7 @@ public partial class LevelEditorWindow
     {
         EditorGUILayout.LabelField($"{selection.Count}개 고름", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox("끌면 함께 옮겨집니다. Ctrl+C로 복사하고, 주황 커서를 옮긴 뒤 Ctrl+V로 같은 간격 그대로 붙여 넣을 수 있습니다.", MessageType.Info);
+        DrawRepeatSection();
 
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("복사")) CopySelection();
@@ -221,37 +247,43 @@ public partial class LevelEditorWindow
         switch (o.type)
         {
             case "cannon":
-                DrawGridPicker(o, PickMode.SideLine);
+                DrawPlacement(o, PickMode.SideLine);
                 EditOptional("속도 (칸/초)", o.speed, defaults.cannon.speed, v => o.speed = v);
                 break;
 
             case "homing":
-                DrawGridPicker(o, PickMode.SideLine);
+                DrawPlacement(o, PickMode.SideLine);
                 EditOptional("처음 속도 (칸/초)", o.speed, defaults.homing.startSpeed, v => o.speed = v);
                 break;
 
             case "boomerang":
-                DrawGridPicker(o, PickMode.SideLine);
+                DrawPlacement(o, PickMode.SideLine);
                 EditOptional("발사 속도 (칸/초)", o.speed, defaults.boomerang.speed, v => o.speed = v);
                 EditOptional("되돌아오는 칸", o.range, defaults.boomerang.defaultRange, v => o.range = v);
                 break;
 
             case "spike":
-                DrawGridPicker(o, PickMode.SideLine);
+                DrawPlacement(o, PickMode.SideLine);
                 EditOptional("경고 시간 (초)", o.warnTime, defaults.spike.defaultWarnTime, v => o.warnTime = v);
                 EditOptional("유지 시간 (초)", o.holdTime, defaults.spike.defaultHoldTime, v => o.holdTime = v);
                 break;
 
             case "laser":
-                DrawGridPicker(o, PickMode.Laser);
+                DrawPlacement(o, PickMode.Laser);
                 EditOptional("경고 시간 (초)", o.warnTime, defaults.laser.defaultWarnTime, v => o.warnTime = v);
                 EditOptional("유지 시간 (초)", o.holdTime, defaults.laser.defaultHoldTime, v => o.holdTime = v);
                 break;
 
             case "floor":
-                DrawGridPicker(o, PickMode.Cell);
+                DrawPlacement(o, PickMode.Cell);
                 EditOptional("경고 시간 (초)", o.warnTime, defaults.floor.defaultWarnTime, v => o.warnTime = v);
                 EditOptional("막는 시간 (초)", o.blockTime, defaults.floor.defaultBlockTime, v => o.blockTime = v);
+                break;
+
+            case "burst":
+                DrawPlacement(o, PickMode.Cell);
+                DrawBurstSide(o);
+                EditOptional("조각 속도 (칸/초)", o.speed, defaults.burst.shardSpeed, v => o.speed = v);
                 break;
 
             case "wall":
@@ -294,6 +326,8 @@ public partial class LevelEditorWindow
             EditorGUILayout.HelpBox("그 시간의 격자에 이 줄이나 칸이 없어서 게임에서 나오지 않습니다. 벽 이동으로 격자가 줄어든 때인지 확인해 주세요.", MessageType.Warning);
         }
 
+        DrawRepeatSection();
+
         GUILayout.Space(8f);
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("복사")) CopySelection();
@@ -303,6 +337,118 @@ public partial class LevelEditorWindow
             GUIUtility.ExitGUI();
         }
         EditorGUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// 반복 배치: 고른 장애물을 간격(박 또는 초)마다 정한 개수만큼 더 놓는다.
+    /// 줄 이동을 정하면 반복할 때마다 줄(바닥 포탄은 칸)도 옮긴다.
+    /// </summary>
+    void DrawRepeatSection()
+    {
+        GUILayout.Space(10f);
+        EditorGUILayout.LabelField("반복 배치", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        repeatInterval = Mathf.Max(0.001f, EditorGUILayout.FloatField(new GUIContent("간격", "다음 것까지의 간격. 0.5박이면 반 박마다."), repeatInterval));
+        repeatInBeats = EditorGUILayout.Popup(repeatInBeats ? 0 : 1, new[] { "박", "초" }, GUILayout.Width(44f)) == 0;
+        EditorGUILayout.EndHorizontal();
+
+        repeatCount = EditorGUILayout.IntSlider(new GUIContent("더 놓을 개수", "고른 것 말고 새로 놓을 개수"), repeatCount, 1, 64);
+        repeatLineStep = EditorGUILayout.IntField(new GUIContent("줄 이동 (한 번에)", "반복할 때마다 줄 번호를 이만큼 옮긴다. 0이면 같은 줄. 벽 이동·텔레포트·어둠은 옮기지 않는다."), repeatLineStep);
+        if (panelHasFloor)
+        {
+            repeatCellStep = EditorGUILayout.Vector2IntField(new GUIContent("칸 이동 (바닥 포탄)", "반복할 때마다 바닥 포탄 칸을 이만큼 옮긴다."), repeatCellStep);
+        }
+
+        float seconds = repeatInBeats ? repeatInterval * BeatLength : repeatInterval;
+        EditorGUILayout.LabelField(" ", $"{seconds:0.###}초 간격으로 {repeatCount}번 더", EditorStyles.miniLabel);
+
+        if (GUILayout.Button("반복 배치"))
+        {
+            RepeatSelection();
+            GUIUtility.ExitGUI();
+        }
+    }
+
+    /// <summary>분열탄이 화면 밖 어느 쪽에서 날아올지 고른다. 랜덤·플레이어 칸이면 행, 열, 아무 쪽도 고를 수 있다.</summary>
+    void DrawBurstSide(ObstacleData o)
+    {
+        bool fixedPlace = string.IsNullOrEmpty(o.target);
+        string[] keys = fixedPlace ? SideKeys : TargetSideKeys;
+        string[] names = fixedPlace ? new[] { "왼쪽에서", "오른쪽에서", "위에서", "아래에서" } : TargetSideNames;
+
+        EditorGUI.BeginChangeCheck();
+        int picked = EditorGUILayout.Popup("날아오는 쪽", Mathf.Max(0, Array.IndexOf(keys, o.side)), names);
+        if (EditorGUI.EndChangeCheck() || (fixedPlace && Array.IndexOf(keys, o.side) < 0))
+        {
+            RecordUndo("날아오는 쪽 바꾸기");
+            o.side = keys[picked];
+        }
+    }
+
+    /// <summary>
+    /// 위치 정하기: 직접 고르기(격자 그림), 랜덤, 플레이어 줄(바닥 포탄은 칸) 중에서 고른다.
+    /// 랜덤·플레이어 줄이면 어느 쪽에서 올지만 고르고, 실제 자리는 게임에서 나타나는 순간 정해진다.
+    /// 발사기가 있는 장애물은 발사기가 날아오는 쪽도 고른다.
+    /// </summary>
+    void DrawPlacement(ObstacleData o, PickMode mode)
+    {
+        bool isCell = mode == PickMode.Cell;
+        int targetIndex = Mathf.Max(0, Array.IndexOf(TargetKeys, o.target ?? ""));
+
+        EditorGUI.BeginChangeCheck();
+        int newTarget = EditorGUILayout.Popup("위치 정하기", targetIndex, isCell ? TargetCellNames : TargetLineNames);
+        if (EditorGUI.EndChangeCheck() && newTarget != targetIndex)
+        {
+            RecordUndo("위치 정하기 바꾸기");
+            o.target = TargetKeys[newTarget];
+
+            // 직접 고르기로 돌아오면, 무작위용 쪽(row, col, any)을 실제 벽 쪽으로 바꿔 둔다.
+            if (o.target == "" && !isCell && !GridSideUtil.TryParse(o.side, out _))
+            {
+                o.side = o.side == "col" ? "bottom" : "left";
+                if (mode == PickMode.Laser) o.axis = o.side == "bottom" ? "col" : "row";
+            }
+            if (o.target != "" && !isCell && string.IsNullOrEmpty(o.side)) o.side = "any";
+            GUIUtility.ExitGUI();   // 아래에 그릴 칸이 달라진다.
+        }
+
+        if (string.IsNullOrEmpty(o.target))
+        {
+            DrawGridPicker(o, mode);
+        }
+        else
+        {
+            if (!isCell)
+            {
+                int sideIndex = Mathf.Max(0, Array.IndexOf(TargetSideKeys, o.side ?? "any"));
+                EditorGUI.BeginChangeCheck();
+                int newSide = EditorGUILayout.Popup("어느 쪽에서", sideIndex, TargetSideNames);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    RecordUndo("쪽 바꾸기");
+                    o.side = TargetSideKeys[newSide];
+                }
+            }
+
+            string where = o.target == "player"
+                ? (isCell ? "하트가 있는 칸" : "하트가 있는 줄")
+                : (isCell ? "무작위 칸" : "무작위 줄");
+            EditorGUILayout.HelpBox($"장애물이 나타나는 순간 {where}로 정해집니다. 플레이할 때마다 달라질 수 있습니다.", MessageType.None);
+        }
+
+        // 발사기가 있는 장애물만 날아오는 쪽을 고른다. (가시와 바닥 포탄은 발사기가 없다)
+        if (o.type == "cannon" || o.type == "homing" || o.type == "boomerang" || o.type == "laser")
+        {
+            int enterIndex = Mathf.Max(0, Array.IndexOf(EnterKeys, o.enterFrom ?? ""));
+            EditorGUI.BeginChangeCheck();
+            int newEnter = EditorGUILayout.Popup(new GUIContent("발사기 날아오는 쪽", "발사기가 화면 밖 어느 쪽에서 날아와 자리 잡는지. 나갈 때도 그쪽으로 나간다."), enterIndex, EnterNames);
+            if (EditorGUI.EndChangeCheck())
+            {
+                RecordUndo("발사기 날아오는 쪽 바꾸기");
+                o.enterFrom = EnterKeys[newEnter];
+            }
+        }
     }
 
     /// <summary>시간 칸과 배치 단위만큼 앞뒤로 옮기는 버튼. 아래에 몇 번째 박인지와 그 종류에서 time의 뜻을 보여 준다.</summary>
@@ -334,6 +480,7 @@ public partial class LevelEditorWindow
             case "spike": return "가시가 다 튀어나온 순간";
             case "laser": return "레이저가 켜지는 순간";
             case "floor": return "바닥 포탄이 튀어나오는 순간";
+            case "burst": return "네 조각으로 갈라지는 순간";
             case "wall": return "벽이 도착하는 순간";
             case "portal": return "텔레포트가 켜지거나 꺼지는 순간";
             case "dark": return "어두워지거나 밝아지기 시작하는 순간";

@@ -29,6 +29,7 @@ public partial class LevelEditorWindow
         ("homing", "유도탄", new Color(1.00f, 0.62f, 0.30f)),
         ("spike", "가시", new Color(0.85f, 0.62f, 1.00f)),
         ("boomerang", "부메랑", new Color(0.40f, 0.95f, 0.80f)),
+        ("burst", "분열탄", new Color(1.00f, 0.82f, 0.70f)),
         ("wall", "벽 이동", new Color(0.80f, 0.80f, 0.80f)),
         ("portal", "텔레포트", new Color(0.55f, 0.75f, 1.00f)),
         ("dark", "어둠", new Color(0.62f, 0.58f, 0.78f)),
@@ -78,6 +79,7 @@ public partial class LevelEditorWindow
         Rect scrollbar = new Rect(rect.x + HeaderWidth, rect.yMax - ScrollbarHeight, trackWidth, ScrollbarHeight);
 
         HandleWheel(rect, trackWidth);
+        FollowPlayhead(trackWidth);
 
         // 배경, 곡 끝 너머, 노래 시작 전 준비 시간
         if (e.type == EventType.Repaint)
@@ -112,6 +114,7 @@ public partial class LevelEditorWindow
 
         LayoutMarkers();
         DrawRows(rowsView);
+        DrawPreviewOverlay(rect);
 
         // 아래 가로 스크롤 막대와 커서 시간
         float visible = trackWidth / pixelsPerSecond;
@@ -312,8 +315,52 @@ public partial class LevelEditorWindow
             case EventType.MouseUp:
                 if (GUIUtility.hotControl != id) break;
                 GUIUtility.hotControl = 0;
+
+                // 미리보기 중이면 그 시간으로 옮겨 간다. (끄는 동안이 아니라 놓았을 때 한 번)
+                if (IsPreviewing) LevelPreview.PendingSeek = cursorTime;
                 e.Use();
                 break;
+        }
+    }
+
+    // ───────────────────────── 미리보기 표시 ─────────────────────────
+
+    static readonly Color PlayheadColor = new Color(0.35f, 1f, 0.45f);
+    static readonly Color HitColor = new Color(1f, 0.3f, 0.3f);
+
+    /// <summary>미리보기 중 재생 위치가 화면 밖으로 나가면 따라가도록 타임라인을 넘긴다.</summary>
+    void FollowPlayhead(float trackWidth)
+    {
+        if (!IsPreviewing || sceneClock == null || Event.current.type != EventType.Layout) return;
+
+        float visible = trackWidth / pixelsPerSecond;
+        float t = sceneClock.SongTime;
+        if (t < scrollTime || t > scrollTime + visible * 0.9f) scrollTime = t - visible * 0.1f;
+    }
+
+    /// <summary>
+    /// 미리보기 표시: 재생 위치(초록 세로선)와 맞은 곳(빨간 표시).
+    /// 맞은 곳은 미리보기를 멈춘 뒤에도 다음 미리보기 전까지 남는다.
+    /// </summary>
+    void DrawPreviewOverlay(Rect rect)
+    {
+        if (Event.current.type != EventType.Repaint) return;
+
+        float left = rect.x + HeaderWidth;
+        float bottom = rect.yMax - ScrollbarHeight;
+
+        foreach (float hit in LevelPreview.HitTimes)
+        {
+            float x = TimeToX(rect.x, hit);
+            if (x < left || x > rect.xMax) continue;
+            EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 3f, RulerHeight), HitColor);
+            EditorGUI.DrawRect(new Rect(x, rect.y + RulerHeight, 1f, bottom - rect.y - RulerHeight), new Color(HitColor.r, HitColor.g, HitColor.b, 0.35f));
+        }
+
+        if (IsPreviewing && sceneClock != null)
+        {
+            float x = TimeToX(rect.x, sceneClock.SongTime);
+            if (x >= left && x <= rect.xMax) EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 2f, bottom - rect.y), PlayheadColor);
         }
     }
 
@@ -436,12 +483,20 @@ public partial class LevelEditorWindow
     /// <summary>타임라인 칸에 적을 짧은 글자</summary>
     static string MarkerLabel(ObstacleData o)
     {
+        // 자리를 나타날 때 정하는 장애물: ?는 무작위, P는 하트 줄. 뒤에 어느 쪽에서 오는지.
+        if (!string.IsNullOrEmpty(o.target))
+        {
+            string mark = o.target == "player" ? "P" : "?";
+            return o.type == "floor" || o.type == "burst" ? mark + "칸" : mark + TargetSideLetter(o.side);
+        }
+
         switch (o.type)
         {
             case "laser":
                 string laserSide = string.IsNullOrEmpty(o.side) ? "" : SideLetter(o.side);
                 return (o.axis == "col" || o.axis == "column" ? "세" : "가") + o.line + laserSide;
             case "floor":
+            case "burst":
                 return o.cell != null && o.cell.Length >= 2 ? $"{o.cell[0]},{o.cell[1]}" : "?";
             case "wall":
                 return $"{SideLetter(o.side)}={o.size}";
@@ -450,6 +505,17 @@ public partial class LevelEditorWindow
                 return o.enabled ? "켬" : "끔";
             default:
                 return SideLetter(o.side) + o.line;
+        }
+    }
+
+    static string TargetSideLetter(string side)
+    {
+        switch (side)
+        {
+            case "row": return "행";
+            case "col": return "열";
+            case "left": case "right": case "top": case "bottom": return SideLetter(side);
+            default: return "*";
         }
     }
 

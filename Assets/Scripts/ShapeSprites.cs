@@ -41,7 +41,16 @@ public static class ShapeSprites
     static readonly Vector2 WingTop = new Vector2(-0.2f, -0.145f);    // 꼭대기
     static readonly Vector2 WingBack = new Vector2(-0.5f, -0.5f);     // 뒤쪽 끝
 
+    // 분열탄 조각: 안쪽 끝이 왼쪽, 뾰족한 끝이 오른쪽(+x)을 향하는 연 모양.
+    // 크기 1 상자 안에서 BurstPieceLength만큼 차지한다.
+    public const float BurstPieceLength = 0.9f;
+    static readonly Vector2 BurstInner = new Vector2(-0.45f, 0f);
+    static readonly Vector2 BurstShoulderTop = new Vector2(-0.075f, 0.347f);
+    static readonly Vector2 BurstShoulderBottom = new Vector2(-0.075f, -0.347f);
+    static readonly Vector2 BurstTip = new Vector2(0.45f, 0f);
+
     static Sprite squareSprite;
+    static Sprite burstPieceSprite;
     static readonly Dictionary<string, Sprite> shapeSprites = new Dictionary<string, Sprite>();
     static Material unlitMaterial;
 
@@ -156,6 +165,37 @@ public static class ShapeSprites
     }
 
     /// <summary>
+    /// 분열탄 조각 (속이 찬 연 모양). 크기 1 상자의 가운데에 길이 BurstPieceLength로 놓이고, 안쪽 끝이 왼쪽, 뾰족한 끝이 오른쪽이다.
+    /// 그림으로 그리면 줄어들 때 모서리가 반투명해지므로, 흰 그림을 꼭짓점 4개짜리 도형으로 잘라서 끝까지 불투명하게 그린다.
+    /// </summary>
+    public static Sprite BurstPiece
+    {
+        get
+        {
+            if (burstPieceSprite == null)
+            {
+                const int size = 4;
+                var pixels = new Color32[size * size];
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 255);
+
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "RuntimeBurstPiece", filterMode = FilterMode.Point };
+                texture.SetPixels32(pixels);
+                texture.Apply();
+
+                burstPieceSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+                burstPieceSprite.name = "RuntimeBurstPiece";
+
+                // 꼭짓점 위치는 그림의 왼쪽 아래를 0으로 한 픽셀 단위다.
+                Vector2 ToPixels(Vector2 point) => (point + new Vector2(0.5f, 0.5f)) * size;
+                burstPieceSprite.OverrideGeometry(
+                    new[] { ToPixels(BurstInner), ToPixels(BurstShoulderTop), ToPixels(BurstTip), ToPixels(BurstShoulderBottom) },
+                    new ushort[] { 0, 1, 2, 0, 2, 3 });
+            }
+            return burstPieceSprite;
+        }
+    }
+
+    /// <summary>
     /// 오른쪽 끝이 V자로 파인 흰 띠 (리본 끝 모양). 원하는 길이와 폭으로 늘려서 쓴다. (sprite.bounds로 원래 크기를 알 수 있다)
     /// notchFraction은 파인 깊이이며 띠 길이 대비 비율이다. 늘린 뒤에도 파인 모양이 그대로 보이도록 길쭉한 텍스처에 그린다.
     /// </summary>
@@ -242,13 +282,18 @@ public static class ShapeSprites
         {
             for (int x = 0; x < width; x++)
             {
-                // 네 모서리와 가운데가 모두 같으면 경계가 지나가지 않는 픽셀이라 잘게 나눠 볼 필요가 없다.
-                // 경계에 걸친 픽셀만 여러 점으로 나눠 검사해서 부드럽게 만든다. (그리는 시간이 크게 준다)
+                // 이 픽셀과 이웃 픽셀의 모서리, 가운데가 모두 같으면 경계가 지나가지 않는 픽셀이라 잘게 나눠 볼 필요가 없다.
+                // 뾰족한 끝은 픽셀보다 가늘어서 네 모서리 사이로 빠질 수 있으므로 이웃까지 함께 본다.
+                // 경계 근처 픽셀만 여러 점으로 나눠 검사해서 부드럽게 만든다. (그리는 시간이 크게 준다)
                 bool c = corners[y * (width + 1) + x];
-                bool same = corners[y * (width + 1) + x + 1] == c
-                            && corners[(y + 1) * (width + 1) + x] == c
-                            && corners[(y + 1) * (width + 1) + x + 1] == c
-                            && isInside((x + 0.5f) / width - 0.5f, (y + 0.5f) / height - 0.5f) == c;
+                bool same = isInside((x + 0.5f) / width - 0.5f, (y + 0.5f) / height - 0.5f) == c;
+                for (int cy = Mathf.Max(0, y - 1); same && cy <= Mathf.Min(height, y + 2); cy++)
+                {
+                    for (int cx = Mathf.Max(0, x - 1); same && cx <= Mathf.Min(width, x + 2); cx++)
+                    {
+                        same = corners[cy * (width + 1) + cx] == c;
+                    }
+                }
 
                 byte alpha;
                 if (same)
@@ -274,11 +319,12 @@ public static class ShapeSprites
             }
         }
 
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        // 그림보다 작게 그려질 때 경계가 깨지지 않도록 작은 크기의 그림(밉맵)도 함께 만든다.
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, true)
         {
             name = name,
             wrapMode = TextureWrapMode.Clamp,
-            filterMode = FilterMode.Bilinear
+            filterMode = FilterMode.Trilinear
         };
         texture.SetPixels32(pixels);
         texture.Apply();

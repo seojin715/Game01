@@ -77,6 +77,10 @@ public class HomingSettings
     [Tooltip("움직임을 이 시간(초)보다 잘게 나눠 계산한다. 프레임이 튀어도 경로가 같아진다.")]
     [Range(0.002f, 0.05f)] public float stepTime = 1f / 120f;
 
+    [Header("소리")]
+    [Tooltip("유도탄을 쏘는 순간(time) 나는 소리")]
+    public ObstacleSound sound = new ObstacleSound();
+
     [Header("그리는 순서")]
     public int launcherSortingOrder = 5;
     public int missileSortingOrder = 20;
@@ -135,7 +139,7 @@ public class HomingObstacle : LevelObstacle
 
         Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
         restPosition = edgePoint - inward * (settings.launcherDistance * cell);
-        offscreenPosition = OutsideView(context.view, restPosition, -inward, launcherWorldSize);
+        offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -inward), launcherWorldSize);
 
         float startSpeedCells = data.speed > 0f ? data.speed : settings.startSpeed;
         startSpeedWorld = startSpeedCells * cell;
@@ -180,6 +184,7 @@ public class HomingObstacle : LevelObstacle
     {
         if (root == null) return;
 
+        settings.sound.PlayAt(fireTime, songTime, previousSongTime);
         UpdateLauncher(songTime);
         Simulate(songTime);
         UpdateMissile(songTime);

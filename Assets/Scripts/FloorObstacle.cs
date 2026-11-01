@@ -47,6 +47,10 @@ public class FloorSettings
     [Tooltip("해제된 뒤 작아지며 사라지는 시간")]
     [Min(0.01f)] public float fadeOutTime = 0.15f;
 
+    [Header("소리")]
+    [Tooltip("바닥 포탄이 튀어나오는 순간(time) 나는 소리")]
+    public ObstacleSound sound = new ObstacleSound();
+
     [Header("그리는 순서")]
     [Tooltip("격자 선(-10)보다 높게")]
     public int warningSortingOrder = -5;
@@ -122,6 +126,7 @@ public class FloorObstacle : LevelObstacle
     {
         if (root == null) return;
 
+        settings.sound.PlayAt(riseStart, songTime, previousSongTime);
         UpdateWarning(songTime);
         UpdateBlock(songTime);
 

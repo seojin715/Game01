@@ -59,6 +59,10 @@ public class CannonSettings
     [Tooltip("깜빡인 뒤 발사기가 작아지며 사라지는 시간")]
     [Min(0.01f)] public float exitTime = 0.2f;
 
+    [Header("소리")]
+    [Tooltip("발사기가 포탄을 쏘는 순간 나는 소리")]
+    public ObstacleSound sound = new ObstacleSound();
+
     [Header("그리는 순서")]
     [Tooltip("격자 선(-10)보다 높게")]
     public int launcherSortingOrder = 5;
@@ -109,7 +113,7 @@ public class CannonObstacle : LevelObstacle
         Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
 
         restPosition = edgePoint - direction * (settings.launcherDistance * cell);
-        offscreenPosition = OutsideView(context.view, restPosition, -direction, launcherWorldSize);
+        offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -direction), launcherWorldSize);
 
         // time에 포탄 중심이 격자 가장자리에 닿도록 쏘는 시간을 거꾸로 계산한다.
         float speedCells = data.speed > 0f ? data.speed : settings.speed;
@@ -152,6 +156,7 @@ public class CannonObstacle : LevelObstacle
     public override void Tick(float songTime, float previousSongTime)
     {
         if (root == null) return;
+        settings.sound.PlayAt(fireTime, songTime, previousSongTime);
         UpdateLauncher(songTime);
         UpdateBall(songTime, previousSongTime);
     }

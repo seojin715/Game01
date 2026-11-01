@@ -39,6 +39,10 @@ public class SpikeSettings
     [Tooltip("다 나와 있다가 벽 속으로 다시 들어가는 시간")]
     [Min(0.01f)] public float hideTime = 0.25f;
 
+    [Header("소리")]
+    [Tooltip("가시가 다 튀어나오는 순간(time) 나는 소리")]
+    public ObstacleSound sound = new ObstacleSound();
+
     [Header("그리는 순서")]
     [Tooltip("반투명 경고. 격자 선(-10)보다 높게")]
     public int warningSortingOrder = -5;
@@ -129,6 +133,7 @@ public class SpikeObstacle : LevelObstacle
     {
         if (root == null) return;
 
+        settings.sound.PlayAt(activeStart, songTime, previousSongTime);
         float extend = ExtendAt(songTime);
         UpdateWarning(songTime);
         UpdateSpike(extend);

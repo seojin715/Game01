@@ -21,8 +21,14 @@ public class ObstacleContext
     /// <summary>격자 밖은 그리지 않는 머티리얼. 벽 뒤에서 나오는 장애물(가시)이 벽 뒤 부분을 숨길 때 쓴다.</summary>
     public Material clippedMaterial;
 
+    /// <summary>분열탄 조각을 그리는 머티리얼. 셰이더를 쓸 수 없으면 null이고, 그때는 꼭짓점 도형으로 그린다.</summary>
+    public Material burstMaterial;
+
     /// <summary>카메라가 비추는 영역 (월드 좌표). 화면 밖 위치를 정할 때 쓴다.</summary>
     public Rect view;
+
+    /// <summary>한 박 길이 (초). 박 단위로 움직임을 정하는 장애물(분열탄)만 쓴다.</summary>
+    public float beatLength = 0.5f;
 
     /// <summary>장애물이 하트에 닿았을 때 부른다.</summary>
     public Action<LevelObstacle> onPlayerHit;
@@ -96,6 +102,22 @@ public abstract class LevelObstacle
         float laneX = grid.CellToWorld(line, 0).x;
         float edgeY = grid.EdgeToWorldY(side == GridSide.Bottom ? bounds.minY : bounds.maxY);
         return new Vector2(laneX, edgeY);
+    }
+
+    /// <summary>
+    /// 발사기가 날아오는(나갈 때도 같은) 화면 밖 방향. 레벨의 enterFrom(left, right, top, bottom)이 있으면 그쪽,
+    /// 없으면 fallback(발사기 뒤쪽, 격자 바깥 방향)이다.
+    /// </summary>
+    protected static Vector2 EnterDirection(ObstacleData data, Vector2 fallback)
+    {
+        switch (data.enterFrom == null ? "" : data.enterFrom.Trim().ToLowerInvariant())
+        {
+            case "left": return Vector2.left;
+            case "right": return Vector2.right;
+            case "top": return Vector2.up;
+            case "bottom": return Vector2.down;
+            default: return fallback;
+        }
     }
 
     /// <summary>start에서 dir(상하좌우) 쪽으로 가다가 화면 밖으로 size만큼 더 나간 점</summary>
