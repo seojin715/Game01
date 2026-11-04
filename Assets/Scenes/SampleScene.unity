@@ -726,6 +726,60 @@ MonoBehaviour:
   sortingOrder: -8
   clock: {fileID: 0}
   grid: {fileID: 0}
+--- !u!1 &865629221
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 865629223}
+  - component: {fileID: 865629222}
+  m_Layer: 0
+  m_Name: Progress Bar
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &865629222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 865629221}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efc85cdcde6240e4588440049d000366, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProgressBar
+  height: 0.2
+  topMargin: 0.18
+  sideMargin: 5
+  color: {r: 1, g: 0, b: 0, a: 1}
+  trackAlpha: 0.2
+  glowIntensity: 1.5
+  fadeInTime: 0.3
+  sortingOrder: 50
+  clock: {fileID: 0}
+  targetCamera: {fileID: 0}
+--- !u!4 &865629223
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 865629221}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1003268475
 GameObject:
   m_ObjectHideFlags: 0
@@ -996,7 +1050,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 90250c5ae13b73e4294a4e24ec24abef, type: 3}
+  levelFile: {fileID: 4900000, guid: 9ae7ead235a2577419a81fb7e5f15fba, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -1006,7 +1060,7 @@ MonoBehaviour:
   cannon:
     speed: 5
     ballSize: 0.5
-    ballHitScale: 0.8
+    ballHitScale: 0.6
     ballAppearTime: 0.06
     launcherSize: 0.6
     launcherThickness: 0.14
@@ -1029,7 +1083,7 @@ MonoBehaviour:
     launcherSortingOrder: 5
     ballSortingOrder: 20
   laser:
-    defaultWarnTime: 1
+    defaultWarnTime: 0.75
     defaultHoldTime: 0.4
     thickness: 1
     hitScale: 0.8
@@ -1175,7 +1229,7 @@ MonoBehaviour:
     launcherSortingOrder: 5
     boomerangSortingOrder: 20
   burst:
-    warningStyle: 0
+    warningStyle: 1
     rotateDegrees: 315
     rotateAcceleration: 3
     enterTime: 0.35
@@ -1190,10 +1244,12 @@ MonoBehaviour:
     size: 0.8
     gap: 0.035
     shrunkGap: 0.008
-    shrinkScale: 0.88
+    shrinkScale: 0.5
+    shardScale: 1.4
+    shardGrowTime: 0.12
     hitScale: 0.75
     pathWarnAlpha: 0.18
-    lineWarnAlpha: 0.14
+    lineWarnAlpha: 0.18
     lineWarnWidth: 0.5
     crossWarnDelay: 0.08
     warnAppearTime: 0.1
@@ -1207,6 +1263,7 @@ MonoBehaviour:
     speed: 4
     length: 3
     thickness: 1
+    snapThicknessToCells: 1
     inset: 0.06
     cornerRadius: 0.12
     portalScreenMargin: 0.5
@@ -1262,3 +1319,4 @@ SceneRoots:
   - {fileID: 1003268479}
   - {fileID: 854805375}
   - {fileID: 1382237586}
+  - {fileID: 865629223}

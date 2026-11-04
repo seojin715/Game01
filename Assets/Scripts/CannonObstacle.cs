@@ -95,6 +95,7 @@ public class CannonObstacle : LevelObstacle
     readonly float chargeStart;
     readonly float blinkStart;   // 사라지기 전 깜빡이기 시작
     readonly float exitStart;
+    readonly float exitDuration;     // 작아지며 사라지는 시간 (레벨에 leaveTime이 있으면 그 비율로 줄인 값)
     readonly float launcherWorldSize;
     readonly float ballWorldSize;
 
@@ -129,17 +130,22 @@ public class CannonObstacle : LevelObstacle
         float lead = Mathf.Max(settings.leadTime, enterTime + settings.chargeTime);
         enterStart = fireTime - lead;
         chargeStart = fireTime - settings.chargeTime;
-        blinkStart = fireTime + settings.stayTime;
-        exitStart = blinkStart + settings.blinkTime;
+        // 발사 뒤 사라지기까지: 남아 있기 → 깜빡임 → 작아지며 사라짐.
+        // 레벨에 leaveTime이 있으면 세 구간을 같은 비율로 줄이거나 늘려서 전체가 leaveTime이 되게 한다.
+        float defaultLeave = settings.stayTime + settings.blinkTime + settings.exitTime;
+        float leaveScale = data.leaveTime > 0f && defaultLeave > 0f ? data.leaveTime / defaultLeave : 1f;
+        blinkStart = fireTime + settings.stayTime * leaveScale;
+        exitStart = blinkStart + settings.blinkTime * leaveScale;
+        exitDuration = Mathf.Max(0.01f, settings.exitTime * leaveScale);
 
         // 포탄이 반대편 화면 밖으로 완전히 나가는 시간
         Vector2 farPoint = OutsideView(context.view, restPosition, direction, ballWorldSize);
         float ballEndTime = fireTime + Vector2.Distance(restPosition, farPoint) / speedWorld;
 
         AppearTime = enterStart;
-        EndTime = Mathf.Max(exitStart + settings.exitTime, ballEndTime);
+        EndTime = Mathf.Max(exitStart + exitDuration, ballEndTime);
         LauncherSide = side;
-        LauncherEndTime = exitStart + settings.exitTime;
+        LauncherEndTime = exitStart + exitDuration;
     }
 
     protected override void OnSpawn()
@@ -197,7 +203,7 @@ public class CannonObstacle : LevelObstacle
         // 사라지기
         if (t >= exitStart)
         {
-            float exit = Mathf.Clamp01((t - exitStart) / settings.exitTime);
+            float exit = Mathf.Clamp01((t - exitStart) / exitDuration);
             alpha *= 1f - exit;
             scale *= Mathf.Lerp(1f, 0.5f, exit);
         }

@@ -71,6 +71,12 @@ public class BurstSettings
     [Tooltip("가장 움츠러들었을 때의 크기 비율")]
     [Range(0.4f, 1f)] public float shrinkScale = 0.88f;
 
+    [Tooltip("갈라진 뒤 조각의 크기 비율 (합쳐져 있을 때 대비). 1이면 그대로, 클수록 날아가는 조각이 커진다. 판정도 같이 커진다.")]
+    [Range(0.5f, 3f)] public float shardScale = 1.4f;
+
+    [Tooltip("갈라진 뒤 조각이 위 크기까지 커지는 시간 (노래 시간, 초)")]
+    [Min(0.01f)] public float shardGrowTime = 0.12f;
+
     [Tooltip("충돌 판정 크기 (보이는 크기 대비). 약간 작게 둬서 억울한 피격을 줄인다.")]
     [Range(0.3f, 1f)] public float hitScale = 0.75f;
 
@@ -206,7 +212,7 @@ public class BurstObstacle : LevelObstacle
         Rect view = context.view;
         float farthest = Mathf.Max(Mathf.Max(view.xMax - center.x, center.x - view.xMin), Mathf.Max(view.yMax - center.y, center.y - view.yMin));
         AppearTime = flyStart;
-        EndTime = splitTime + (farthest + radius * 2f) / shardSpeedWorld;
+        EndTime = splitTime + (farthest + radius * 2f * Mathf.Max(1f, settings.shardScale)) / shardSpeedWorld;
     }
 
     protected override void OnSpawn()
@@ -344,8 +350,14 @@ public class BurstObstacle : LevelObstacle
         for (int i = 0; i < PieceCount; i++)
         {
             pieces[i].enabled = true;
-            PlacePiece(pieces[i], center, i * 90f, gap, 1f);
+            PlacePiece(pieces[i], center, i * 90f, gap, ShardScaleAt(t));
         }
+    }
+
+    /// <summary>갈라진 뒤 조각 크기 비율. 갈라지는 순간 1에서 시작해 Shard Grow Time 동안 Shard Scale까지 커진다.</summary>
+    float ShardScaleAt(float t)
+    {
+        return Mathf.Lerp(1f, settings.shardScale, EaseOutCubic((t - splitTime) / settings.shardGrowTime));
     }
 
     /// <summary>조각 하나를 놓는다. 그림은 안쪽 끝이 상자 왼쪽, 뾰족한 끝이 오른쪽(+x)이다.</summary>
@@ -390,10 +402,12 @@ public class BurstObstacle : LevelObstacle
         }
         else
         {
-            // 조각의 판정은 조각 가운데쯤의 원으로 본다.
-            float distance = Context.heart.HitRadius + radius * 0.4f * settings.hitScale;
-            float gapNow = shardSpeedWorld * (t - splitTime) + radius * 0.5f;
-            float gapBefore = shardSpeedWorld * Mathf.Max(0f, previousT - splitTime) + radius * 0.5f;
+            // 조각의 판정은 조각 가운데쯤의 원으로 본다. 커진 조각은 판정도 같이 커진다.
+            float before = Mathf.Max(previousT, splitTime);
+            float scaleNow = ShardScaleAt(t);
+            float distance = Context.heart.HitRadius + radius * scaleNow * 0.4f * settings.hitScale;
+            float gapNow = shardSpeedWorld * (t - splitTime) + radius * scaleNow * 0.5f;
+            float gapBefore = shardSpeedWorld * (before - splitTime) + radius * ShardScaleAt(before) * 0.5f;
             hit = false;
             for (int i = 0; i < PieceCount && !hit; i++)
             {

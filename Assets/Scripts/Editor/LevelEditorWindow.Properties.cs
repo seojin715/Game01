@@ -530,6 +530,13 @@ public partial class LevelEditorWindow
                 : defaults.laser.enterTime;
             EditOptional("발사기 날아오는 시간 (초)", o.enterTime, defaultEnterTime, v => o.enterTime = v);
 
+            // 일반 포탄은 쏜 뒤 발사기가 사라지기까지의 시간도 장애물마다 정할 수 있다. (짧게 하면 빨리 비켜 준다)
+            if (o.type == "cannon")
+            {
+                var cannonDefaults = defaults.cannon;
+                EditOptional("발사기 사라지는 시간 (초)", o.leaveTime, cannonDefaults.stayTime + cannonDefaults.blinkTime + cannonDefaults.exitTime, v => o.leaveTime = v);
+            }
+
             var atBaseLabel = new GUIContent("발사기 처음 격자 자리", "켜면 격자가 줄어도 발사기가 처음 격자(5x5)의 벽 바깥에 있습니다. 시간은 그대로 그때의 벽에 닿는 순간입니다.");
             EditorGUI.BeginChangeCheck();
             bool atBase = EditorGUILayout.Toggle(atBaseLabel, o.launcherAtBase);

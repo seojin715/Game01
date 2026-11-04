@@ -188,6 +188,9 @@ public class ObstacleData
     [Tooltip("발사기가 화면 밖에서 제자리까지 날아오는 시간 (초). 0이거나 적지 않으면 기본값. (발사기가 있는 장애물만)")]
     public float enterTime;
 
+    [Tooltip("일반 포탄: 발사 뒤 발사기가 다 사라지기까지 걸리는 시간 (초). 남아 있기·깜빡임·작아지기를 같은 비율로 줄이거나 늘린다. 0이거나 적지 않으면 기본값(Stay Time + Blink Time + Exit Time).")]
+    public float leaveTime;
+
     [Tooltip("묶음 번호. 같은 번호끼리는 랜덤으로 고르는 쪽(side)과 발사기가 날아오는 쪽(enterFrom: random)이 같아진다. 0이거나 적지 않으면 묶이지 않는다.")]
     public int group;
 

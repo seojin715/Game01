@@ -128,6 +128,7 @@ public static class LevelJsonWriter
         if (!string.IsNullOrEmpty(o.enterFrom)) sb.Append(", \"enterFrom\": ").Append(Text(o.enterFrom));
         if (o.launcherAtBase) sb.Append(", \"launcherAtBase\": true");
         Optional(sb, "enterTime", o.enterTime);
+        if (o.type == "cannon") Optional(sb, "leaveTime", o.leaveTime);
         if (o.group != 0) sb.Append(", \"group\": ").Append(o.group);
 
         sb.Append(" }");

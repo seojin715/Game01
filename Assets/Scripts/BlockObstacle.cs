@@ -17,6 +17,9 @@ public class BlockSettings
     [Tooltip("날아가는 방향과 수직인 두께. 위에서 날아오면 가로 길이다. 1이면 줄 하나를 꼭 채운다.")]
     [Min(0.1f)] public float thickness = 1f;
 
+    [Tooltip("켜면 두께가 정수일 때 칸 경계에 맞춘다. 홀수는 line 줄이 가운데이고, 짝수는 line 줄에서 위(세로로 날면 오른쪽)로 한 칸 더 넓다. 끄면 언제나 line 줄 가운데를 기준으로 양쪽으로 넓힌다.")]
+    public bool snapThicknessToCells = true;
+
     [Header("모양")]
     [Tooltip("보이는 모양을 칸 경계보다 이만큼 안쪽으로 줄인다 (칸 대비, 한쪽). 격자 선이 보이게 한다.")]
     [Range(0f, 0.3f)] public float inset = 0.06f;
@@ -151,7 +154,14 @@ public class BlockObstacle : LevelObstacle
         float thickness = data.thickness > 0f ? data.thickness : settings.thickness;
         float laneCenter = data.line + 0.5f;
         acrossMin = laneCenter - thickness * 0.5f;
-        acrossMax = laneCenter + thickness * 0.5f;
+
+        // 짝수 두께는 줄 가운데를 기준으로 하면 칸 경계에서 반 칸 어긋나므로, 정수 두께는 칸 경계에 맞춘다.
+        // (홀수는 line 줄이 가운데, 짝수는 line 줄에서 번호가 큰 쪽으로 한 칸 더)
+        if (settings.snapThicknessToCells && Mathf.Abs(thickness - Mathf.Round(thickness)) < 0.001f)
+        {
+            acrossMin = data.line - Mathf.Floor((Mathf.Round(thickness) - 1f) * 0.5f);
+        }
+        acrossMax = acrossMin + thickness;
 
         // 포탈은 날아오는 쪽 화면 끝에서 조금 안쪽에 생긴다. (격자보다 바깥이어야 한다)
         float cell = context.CellSize;
