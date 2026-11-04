@@ -996,7 +996,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 5240a251668f9794cba8a0ceec166ff8, type: 3}
+  levelFile: {fileID: 4900000, guid: 90250c5ae13b73e4294a4e24ec24abef, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -1099,6 +1099,7 @@ MonoBehaviour:
     minTurnRate: 0
     missileSize: 0.5
     hitScale: 0.7
+    explodeOnSolid: 1
     appearTime: 0.08
     maxLifetime: 8
     explosionTime: 0.3
@@ -1146,7 +1147,7 @@ MonoBehaviour:
     speed: 9
     defaultRange: 3
     spinSpeed: 900
-    size: 0.65
+    size: 0.75
     hitScale: 0.75
     appearTime: 0.06
     catchTime: 0.08
@@ -1154,8 +1155,9 @@ MonoBehaviour:
     ribbonWidth: 0.5
     notchDepth: 0.5
     ribbonAlpha: 0.2
+    ribbonFadeTime: 0.15
     rangeSortingOrder: -5
-    launcherSize: 0.6
+    launcherSize: 0.7
     launcherThickness: 0.06
     launcherDistance: 0.55
     leadTime: 0.5
@@ -1202,10 +1204,11 @@ MonoBehaviour:
     warningSortingOrder: -5
     shardSortingOrder: 20
   block:
-    speed: 6
+    speed: 4
     length: 3
     thickness: 1
     inset: 0.06
+    cornerRadius: 0.12
     portalScreenMargin: 0.5
     portalExtra: 0.15
     portalLineWidth: 0.1
@@ -1220,6 +1223,7 @@ MonoBehaviour:
     touchFadeIn: 0.06
     touchFadeOut: 0.3
     bumpHoldTime: 0.12
+    overlapProjectileColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
     sound:
       clip: {fileID: 0}
       volume: 0.15
@@ -1232,6 +1236,7 @@ MonoBehaviour:
     glowIntensity: 1.25
     lightRadius: 0.8
     heartLightRadius: 1.2
+  previewMarkKey: 27
 --- !u!4 &1382237586
 Transform:
   m_ObjectHideFlags: 0

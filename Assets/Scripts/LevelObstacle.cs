@@ -37,6 +37,9 @@ public class ObstacleContext
     /// <summary>장애물이 하트에 닿았을 때 부른다.</summary>
     public Action<LevelObstacle> onPlayerHit;
 
+    /// <summary>지금 나와 있는 장애물들. 유도탄이 단단한 장애물(직사각형 포탄, 솟은 바닥 포탄)에 부딪혔는지 볼 때 쓴다.</summary>
+    public List<LevelObstacle> obstacles;
+
     /// <summary>묶음(group)마다 정해 둔, 발사기가 랜덤으로 날아오는 방향. 같은 묶음은 같은 방향에서 온다.</summary>
     public readonly Dictionary<int, Vector2> groupEnterDirections = new Dictionary<int, Vector2>();
 
@@ -73,6 +76,23 @@ public abstract class LevelObstacle
 
     /// <summary>자리를 정한 진짜 장애물. 나타날 때 자리를 정하는 장애물(TargetedObstacle)이 아니면 자기 자신이다.</summary>
     public virtual LevelObstacle Resolved => this;
+
+    /// <summary>
+    /// 다른 발사체를 막는 단단한 장애물(직사각형 포탄, 솟아 있는 바닥 포탄)이면 지금 차지한 영역(월드)을 돌려준다.
+    /// 유도탄은 여기에 닿으면 터진다.
+    /// </summary>
+    public virtual bool TryGetSolidRect(out Rect rect)
+    {
+        rect = default;
+        return false;
+    }
+
+    /// <summary>원(center, radius)이 사각형에 닿는지</summary>
+    protected static bool CircleTouchesRect(Vector2 center, float radius, Rect rect)
+    {
+        Vector2 closest = new Vector2(Mathf.Clamp(center.x, rect.xMin, rect.xMax), Mathf.Clamp(center.y, rect.yMin, rect.yMax));
+        return (center - closest).sqrMagnitude <= radius * radius;
+    }
 
     protected LevelObstacle(ObstacleData data, ObstacleContext context)
     {

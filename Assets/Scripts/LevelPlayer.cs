@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// 레벨 JSON을 읽어서, 노래 시계에 맞춰 장애물을 내보내고 움직인다. (스포너)
@@ -63,6 +64,10 @@ public class LevelPlayer : MonoBehaviour
     [Header("어둠")]
     public DarkSettings dark = new DarkSettings();
 
+    [Header("레벨 에디터 미리보기")]
+    [Tooltip("미리보기 중 이 키를 누르면 그 노래 시간을 레벨 에디터 타임라인에 하늘색으로 표시한다. (평소 게임에서는 아무 일도 없다)")]
+    public Key previewMarkKey = Key.M;
+
     /// <summary>읽어 들인 레벨. 읽지 못했으면 null.</summary>
     public LevelData Level { get; private set; }
 
@@ -81,6 +86,8 @@ public class LevelPlayer : MonoBehaviour
     readonly List<(float time, bool on)> darkEvents = new List<(float, bool)>();   // 어둠 켜기/끄기 (시간 순)
     readonly List<SpriteRenderer> renderers = new List<SpriteRenderer>();
     readonly Dictionary<SpriteRenderer, bool> isMarker = new Dictionary<SpriteRenderer, bool>();   // 렌더러마다 경고 표시인지 (이름은 한 번만 읽는다)
+    readonly Dictionary<SpriteRenderer, bool> isProjectile = new Dictionary<SpriteRenderer, bool>();   // 렌더러마다 날아가는 포탄인지
+    readonly List<Rect> blockRects = new List<Rect>();   // 이번 프레임에 보이는 직사각형 포탄 영역
     Material obstacleGlowMaterial;   // 포탄과 발사기가 함께 쓰는 머티리얼. 어두울수록 1보다 밝아진다.
 
     void Awake()
@@ -171,7 +178,8 @@ public class LevelPlayer : MonoBehaviour
             view = grid.ViewRectFor(grid.MaxBounds),
             clippedMaterial = SpriteMaterial.CreateClipped("ObstacleClipped"),
             burstMaterial = SpriteMaterial.CreateBurstPiece("BurstPiece"),
-            onPlayerHit = OnPlayerHit
+            onPlayerHit = OnPlayerHit,
+            obstacles = active
         };
 
         for (int i = 0; i < Level.obstacles.Length; i++)
@@ -226,6 +234,7 @@ public class LevelPlayer : MonoBehaviour
         if (context != null && context.burstMaterial != null) Destroy(context.burstMaterial);
         if (obstacleGlowMaterial != null) Destroy(obstacleGlowMaterial);
         isMarker.Clear();
+        isProjectile.Clear();
 
         rebuilding = true;
         BuildSchedule();
@@ -323,11 +332,31 @@ public class LevelPlayer : MonoBehaviour
 
         // 랜덤 자리의 발사기는 기본으로 겹치지 않는다. 이 발사기가 있는 동안 비어 있는 자리에서만 고른다.
         bool avoidLaunchers = !data.allowOverlap && target == "random" && sample.LauncherSide.HasValue;
+
+        // 하트 줄을 노리는 발사기도 기본으로 겹치지 않는다. 하트 줄이 차 있으면 빈 무작위 자리로 옮긴다.
+        bool avoidAtPlayer = !data.allowOverlap && target == "player" && sample.LauncherSide.HasValue;
         float launcherEnd = sample.LauncherEndTime;
 
         return new TargetedObstacle(data, context, appearTime,
-            d => avoidLaunchers ? PlaceInFreeSlot(d, appearTime, launcherEnd) : PlaceTarget(type, d),
+            d => avoidLaunchers ? PlaceInFreeSlot(d, appearTime, launcherEnd)
+               : avoidAtPlayer ? PlaceAtPlayerOrFreeSlot(type, d, appearTime, launcherEnd)
+               : PlaceTarget(type, d),
             d => CreateObstacle(type, d, index));
+    }
+
+    /// <summary>
+    /// 하트가 있는 줄을 노린다. 그 자리(쪽과 줄)에 이 발사기가 있는 동안 다른 발사기가 있으면,
+    /// 겹치지 않는 자리 중에서 무작위로 고른다. 빈자리도 없으면 null이고, 그 장애물은 나오지 않는다.
+    /// </summary>
+    ObstacleData PlaceAtPlayerOrFreeSlot(string type, ObstacleData data, float start, float end)
+    {
+        var placed = PlaceTarget(type, data);
+        if (placed != null && GridSideUtil.TryParse(placed.side, out var side)
+            && !HasLauncherAt(side, placed.line, start, end, type == "laser"))
+        {
+            return placed;
+        }
+        return PlaceInFreeSlot(data, start, end);
     }
 
     /// <summary>
@@ -338,6 +367,7 @@ public class LevelPlayer : MonoBehaviour
     {
         var b = grid.BoundsAt(data.time);
         bool isLaser = data.type.Trim().ToLowerInvariant() == "laser";
+        bool fixedLine = data.fixLine && data.target.Trim().ToLowerInvariant() == "random";   // 하트 줄에서 옮겨 온 것은 줄을 가리지 않는다.
         var free = new List<(GridSide side, int line)>();
 
         foreach (var side in GroupedSides(data))
@@ -348,7 +378,7 @@ public class LevelPlayer : MonoBehaviour
 
             for (int line = first; line <= last; line++)
             {
-                if (data.fixLine && line != data.line) continue;   // 줄을 정해 두었으면 그 줄만 본다.
+                if (fixedLine && line != data.line) continue;   // 줄을 정해 두었으면 그 줄만 본다.
                 if (!HasLauncherAt(side, line, start, end, isLaser)) free.Add((side, line));
             }
         }
@@ -685,7 +715,17 @@ public class LevelPlayer : MonoBehaviour
     {
         if (clock == null || !clock.IsLoaded) return;
         if (Countdown.IsActive) return;   // 3, 2, 1을 세는 동안은 장애물을 내보내지 않는다.
-        if (LevelPreview.Active) HandlePreviewRequests();
+        if (LevelPreview.Active)
+        {
+            HandlePreviewRequests();
+
+            // 표시 키를 누른 순간의 노래 시간을 에디터에 넘긴다.
+            var keyboard = Keyboard.current;
+            if (keyboard != null && previewMarkKey != Key.None && keyboard[previewMarkKey].wasPressedThisFrame)
+            {
+                LevelPreview.MarkTimes.Add(clock.SongTime);
+            }
+        }
 
         float time = clock.SongTime;
         if (!ticking)
@@ -738,7 +778,12 @@ public class LevelPlayer : MonoBehaviour
         if (context != null && context.clippedMaterial != null) context.clippedMaterial.SetColor(ColorProperty, glow);
         if (context != null && context.burstMaterial != null) context.burstMaterial.SetColor(ColorProperty, glow);
 
-        if (container != null) GatherObstacleLights(level);
+        if (container != null)
+        {
+            container.GetComponentsInChildren(false, renderers);
+            TintProjectilesOverBlocks();
+            GatherObstacleLights(level);
+        }
 
         if (level > 0f && heart != null && grid != null)
         {
@@ -754,7 +799,6 @@ public class LevelPlayer : MonoBehaviour
     /// </summary>
     void GatherObstacleLights(float level)
     {
-        container.GetComponentsInChildren(false, renderers);
         float radius = dark.lightRadius * grid.cellSize;
 
         foreach (var r in renderers)
@@ -778,6 +822,41 @@ public class LevelPlayer : MonoBehaviour
             if (e.x > e.y * 2.5f) Darkness.AddSegment(new Vector2(c.x - e.x + e.y, c.y), new Vector2(c.x + e.x - e.y, c.y), radius + e.y, r.color.a);
             else if (e.y > e.x * 2.5f) Darkness.AddSegment(new Vector2(c.x, c.y - e.y + e.x), new Vector2(c.x, c.y + e.y - e.x), radius + e.x, r.color.a);
             else Darkness.AddPoint(c, radius + Mathf.Max(e.x, e.y), r.color.a);
+        }
+    }
+
+    /// <summary>
+    /// 직사각형 포탄과 겹친 포탄(일반 포탄, 유도탄, 부메랑, 분열탄)을 회색으로 그린다.
+    /// 같은 색이라 직사각형 위에서는 안 보이기 때문이다. 포탄은 매 프레임 제 색을 다시 칠하므로, 떨어지면 원래 색으로 돌아간다.
+    /// </summary>
+    void TintProjectilesOverBlocks()
+    {
+        blockRects.Clear();
+        foreach (var obstacle in active)
+        {
+            if (obstacle.Resolved is BlockObstacle && obstacle.Resolved.TryGetSolidRect(out Rect rect)) blockRects.Add(rect);
+        }
+        if (blockRects.Count == 0) return;
+
+        Color gray = ScreenInvert.Apply(block.overlapProjectileColor);
+        foreach (var r in renderers)
+        {
+            if (!isProjectile.TryGetValue(r, out bool projectile))
+            {
+                if (isProjectile.Count > 4000) isProjectile.Clear();   // 지워진 장애물 것이 쌓이지 않게 가끔 비운다.
+                projectile = r.name == "Ball" || r.name == "Missile" || r.name == "Boomerang" || r.name == "Piece";
+                isProjectile[r] = projectile;
+            }
+            if (!projectile || !r.enabled) continue;
+
+            Bounds b = r.bounds;
+            Rect area = Rect.MinMaxRect(b.min.x, b.min.y, b.max.x, b.max.y);
+            foreach (var rect in blockRects)
+            {
+                if (!rect.Overlaps(area)) continue;
+                r.color = new Color(gray.r, gray.g, gray.b, r.color.a);   // 투명도(나타남·사라짐)는 그대로 둔다.
+                break;
+            }
         }
     }
 

@@ -32,6 +32,9 @@ public class HomingSettings
     [Tooltip("충돌 판정 크기 (보이는 크기 대비). 약간 작게 둬서 억울한 피격을 줄인다.")]
     [Range(0.3f, 1f)] public float hitScale = 0.7f;
 
+    [Tooltip("켜면 직사각형 포탄이나 솟아 있는 바닥 포탄에 닿았을 때 그 자리에서 터진다.")]
+    public bool explodeOnSolid = true;
+
     [Tooltip("유도탄이 나타날 때 커지면서 선명해지는 시간 (초)")]
     [Min(0f)] public float appearTime = 0.08f;
 
@@ -97,7 +100,7 @@ public class HomingSettings
 /// 유도탄 (homing).
 /// 발사기(속 빈 삼각형)가 화면 밖에서 지정한 줄 옆으로 와서 자리 잡고, time에 유도탄(채운 삼각형)을 쏜다.
 /// 유도탄은 하트를 따라가는데, 속도는 점점 빨라지고 꺾을 수 있는 각도는 점점 줄어서 결국 피할 수 있다.
-/// 하트에 닿거나 화면 밖으로 나가면 터지는 모션과 함께 사라진다.
+/// 하트에 닿거나, 직사각형 포탄이나 솟아 있는 바닥 포탄에 닿거나, 화면 밖으로 나가면 터지는 모션과 함께 사라진다.
 ///
 /// 하트를 따라가므로 위치를 노래 시간만으로 정할 수 없다. 대신 노래 시간이 흐른 만큼만
 /// 잘게 나눠 움직인다. 그래서 슬로우가 걸리면 같은 비율로 느려지고, 프레임이 튀어도 경로가 같다.
@@ -297,6 +300,13 @@ public class HomingObstacle : LevelObstacle
             }
         }
 
+        // 직사각형 포탄이나 솟아 있는 바닥 포탄에 닿으면 그 자리에서 터진다.
+        if (settings.explodeOnSolid && TouchesSolid(position, missileWorldSize * 0.5f * settings.hitScale))
+        {
+            Explode(simulatedTime + dt, position);
+            return;
+        }
+
         // 화면 밖으로 나가면 화면 가장자리에서 터진다. (터지는 모션이 보이게)
         if (!Context.view.Contains(position))
         {
@@ -308,6 +318,17 @@ public class HomingObstacle : LevelObstacle
         }
 
         if (age >= settings.maxLifetime) Explode(simulatedTime + dt, position);
+    }
+
+    /// <summary>원(유도탄)이 지금 나와 있는 단단한 장애물에 닿는지</summary>
+    bool TouchesSolid(Vector2 center, float radius)
+    {
+        if (Context.obstacles == null) return false;
+        foreach (var obstacle in Context.obstacles)
+        {
+            if (obstacle.Resolved.TryGetSolidRect(out Rect rect) && CircleTouchesRect(center, radius, rect)) return true;
+        }
+        return false;
     }
 
     void Explode(float time, Vector2 at)

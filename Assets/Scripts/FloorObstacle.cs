@@ -192,6 +192,15 @@ public class FloorObstacle : LevelObstacle
         block.color = WithAlpha(Context.Color, alpha);
     }
 
+    /// <summary>칸을 막고 솟아 있는 동안의 정사각형 영역. 유도탄이 닿으면 터진다.</summary>
+    public override bool TryGetSolidRect(out Rect rect)
+    {
+        bool solid = isBlocking && block != null && block.enabled;
+        Bounds b = solid ? block.bounds : default;
+        rect = Rect.MinMaxRect(b.min.x, b.min.y, b.max.x, b.max.y);
+        return solid;
+    }
+
     /// <summary>0~1 진행에 따라 0.3에서 시작해 1+overshoot까지 커졌다가 1로 돌아오는 크기</summary>
     float RiseCurve(float x)
     {

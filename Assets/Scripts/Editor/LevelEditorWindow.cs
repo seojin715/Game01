@@ -20,6 +20,7 @@ using UnityEngine;
 /// 저장하지 않은 내용도 그대로 나오고, 미리보기 중에 고치거나 눈금을 누르면 멈추지 않고 바로 반영된다.
 /// 버튼 옆 메뉴로 진행 속도(100~25%)를 고르면 게임과 노래가 함께 느려진다.
 /// 맞아도 목숨은 줄지 않고, 맞은 곳은 타임라인 위에 빨간 표시로 남는다.
+/// 미리보기 중 표시 키(기본 M)를 누르면 그 시간이 하늘색 표시로 남는다. (도구 막대의 버튼으로 지울 때까지)
 /// 편집한 내용은 창에 직렬화해 두어서 Ctrl+Z로 되돌릴 수 있고, 스크립트가 다시 컴파일돼도 남는다.
 /// </summary>
 public partial class LevelEditorWindow : EditorWindow
@@ -52,6 +53,7 @@ public partial class LevelEditorWindow : EditorWindow
     [SerializeField] float scrollTime;               // 타임라인 왼쪽 끝의 시간
     [SerializeField] float cursorTime;               // 붙여넣기와 + 버튼이 쓰는 시간 (주황 세로선)
     [SerializeField] float previewSpeed = 1f;        // 미리보기 진행 속도 (1이 원래 속도)
+    [SerializeField] List<float> marks = new List<float>();   // 미리보기 중 표시 키로 남긴 시간 (하늘색, 지우기 전까지 남는다)
     [SerializeField] Vector2 rowsScroll;
     [SerializeField] Vector2 propertiesScroll;
 
@@ -118,13 +120,22 @@ public partial class LevelEditorWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.LabelField(
-            "더블클릭: 추가 · 끌기: 이동 · 빈 곳에서 끌기: 네모 안 고르기 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기 · 좌우 화살표: 배치 단위만큼 이동 · 미리보기 중 눈금 클릭: 그 시간으로 이동",
+            "더블클릭: 추가 · 끌기: 이동 · 빈 곳에서 끌기: 네모 안 고르기 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기 · 좌우 화살표: 배치 단위만큼 이동 · 미리보기 중 눈금 클릭: 그 시간으로 이동 · 미리보기 중 M: 그 시간 표시 · 눈금의 하늘색 표시 오른쪽 클릭: 그 표시 지우기",
             EditorStyles.miniLabel);
     }
 
     /// <summary>미리보기 중이면 고친 내용을 게임에 보내고, 재생 위치가 움직이도록 계속 다시 그린다.</summary>
     void Update()
     {
+        // 미리보기 중 표시 키로 남긴 시간을 가져온다. (게임 쪽 목록은 비운다)
+        if (LevelPreview.MarkTimes.Count > 0)
+        {
+            marks.AddRange(LevelPreview.MarkTimes);
+            LevelPreview.MarkTimes.Clear();
+            marks.Sort();
+            Repaint();
+        }
+
         if (!IsPreviewing) return;
 
         // 끄는 동안처럼 연달아 고칠 때는 잠깐 멈춘 뒤에 한 번만 보낸다. (보낼 때마다 장애물을 다시 만들기 때문)
@@ -146,6 +157,17 @@ public partial class LevelEditorWindow : EditorWindow
     void DrawPreviewButtons()
     {
         // 진행 속도: 미리보기 전에 골라 두거나, 미리보기 중에 바꾸면 바로 반영된다.
+        // 표시 키로 남긴 시간이 있으면 지우는 버튼을 보여 준다.
+        if (marks.Count > 0)
+        {
+            var clearContent = new GUIContent($"표시 {marks.Count}개 지우기", "미리보기 중 표시 키(기본 M)로 남긴 하늘색 표시를 모두 지웁니다. 하나만 지우려면 눈금 위 표시를 오른쪽 클릭하세요.");
+            if (GUILayout.Button(clearContent, EditorStyles.toolbarButton))
+            {
+                Undo.RecordObject(this, "표시 모두 지우기");
+                marks.Clear();
+            }
+        }
+
         int speedIndex = Mathf.Max(0, Array.IndexOf(PreviewSpeeds, previewSpeed));
         EditorGUI.BeginChangeCheck();
         speedIndex = EditorGUILayout.Popup(speedIndex, PreviewSpeedLabels, EditorStyles.toolbarPopup, GUILayout.Width(56f));

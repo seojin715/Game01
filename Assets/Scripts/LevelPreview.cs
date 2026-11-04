@@ -19,6 +19,7 @@ public class LevelPreviewRequest
 /// 미리보기 중에는:
 /// - 카운트다운과 준비 시간 없이 요청한 시간부터 노래와 장애물이 나온다. (LevelPlayer, SongClock, Countdown)
 /// - 맞아도 목숨이 줄지 않고, 하트가 잠깐 번쩍이며 맞은 시간을 기록한다. 에디터 타임라인에 빨간 표시로 보인다.
+/// - 표시 키(Level Player의 Preview Mark Key, 기본 M)를 누르면 그 시간을 기록한다. 에디터 타임라인에 하늘색 표시로 남는다.
 /// - 에디터에서 레벨을 고치거나 다른 시간을 누르면, 플레이를 멈추지 않고 바로 반영한다. (Pending 값)
 /// - 에디터에서 고른 속도로 게임과 노래가 함께 느리게 흐른다. (Speed, SlowMotion이 적용한다)
 ///
@@ -37,6 +38,9 @@ public static class LevelPreview
 
     /// <summary>미리보기 중 맞은 노래 시간들 (에디터 타임라인에 표시)</summary>
     public static readonly List<float> HitTimes = new List<float>();
+
+    /// <summary>미리보기 중 표시 키를 누른 노래 시간들. 레벨 에디터 창이 가져가서 타임라인에 남기고 비운다.</summary>
+    public static readonly List<float> MarkTimes = new List<float>();
 
     /// <summary>미리보기 중 에디터가 고친 레벨. LevelPlayer가 읽고 비운다.</summary>
     public static string PendingLevelJson;
@@ -87,6 +91,7 @@ public static class LevelPreview
         PendingLevelJson = null;
         PendingSeek = null;
         HitTimes.Clear();
+        MarkTimes.Clear();
         lastHit = float.NegativeInfinity;
     }
 

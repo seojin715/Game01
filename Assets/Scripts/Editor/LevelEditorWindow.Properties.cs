@@ -489,11 +489,14 @@ public partial class LevelEditorWindow
                 if (o.target == "random") DrawFixedLine(o);
             }
 
-            // 랜덤 자리의 발사기는 기본으로 다른 발사기와 겹치지 않는다. 켜면 겹쳐도 된다. (발사기가 있는 장애물만)
+            // 랜덤 자리와 하트 줄의 발사기는 기본으로 다른 발사기와 겹치지 않는다. 켜면 겹쳐도 된다. (발사기가 있는 장애물만)
             bool hasLauncher = o.type == "cannon" || o.type == "homing" || o.type == "boomerang" || o.type == "laser";
-            if (o.target == "random" && hasLauncher)
+            if (hasLauncher)
             {
-                var label = new GUIContent("발사기 겹쳐도 됨", "끄면(기본) 발사기가 이미 있거나 그동안 나올 자리를 피하고, 빈자리가 없으면 이 장애물은 나오지 않습니다. 레이저는 다른 레이저가 있는 줄(반대쪽 벽 포함)도 피합니다. 켜면 겹쳐도 나옵니다.");
+                string tooltip = o.target == "player"
+                    ? "끄면(기본) 하트가 있는 줄에 발사기가 이미 있거나 그동안 나올 예정일 때, 겹치지 않는 무작위 자리로 옮깁니다. 빈자리가 없으면 이 장애물은 나오지 않습니다. 켜면 겹쳐도 하트 줄로 나옵니다."
+                    : "끄면(기본) 발사기가 이미 있거나 그동안 나올 자리를 피하고, 빈자리가 없으면 이 장애물은 나오지 않습니다. 레이저는 다른 레이저가 있는 줄(반대쪽 벽 포함)도 피합니다. 켜면 겹쳐도 나옵니다.";
+                var label = new GUIContent("발사기 겹쳐도 됨", tooltip);
                 EditorGUI.BeginChangeCheck();
                 bool allowOverlap = EditorGUILayout.Toggle(label, o.allowOverlap);
                 if (EditorGUI.EndChangeCheck())
@@ -504,7 +507,7 @@ public partial class LevelEditorWindow
             }
 
             string where = o.target == "player"
-                ? (isCell ? "하트가 있는 칸" : "하트가 있는 줄")
+                ? (isCell ? "하트가 있는 칸" : hasLauncher && !o.allowOverlap ? "하트가 있는 줄(발사기가 차 있으면 빈 무작위 자리)" : "하트가 있는 줄")
                 : (isCell ? "무작위 칸" : o.fixLine ? $"무작위 쪽의 {o.line}번 줄" : "무작위 줄");
             EditorGUILayout.HelpBox($"장애물이 나타나는 순간 {where}로 정해집니다. 플레이할 때마다 달라질 수 있습니다.", MessageType.None);
         }

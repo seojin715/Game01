@@ -21,6 +21,9 @@ public class BlockSettings
     [Tooltip("보이는 모양을 칸 경계보다 이만큼 안쪽으로 줄인다 (칸 대비, 한쪽). 격자 선이 보이게 한다.")]
     [Range(0f, 0.3f)] public float inset = 0.06f;
 
+    [Tooltip("모서리를 둥글게 깎는 반지름 (칸 대비). 0이면 각진 직사각형이다.")]
+    [Range(0f, 0.5f)] public float cornerRadius = 0.12f;
+
     [Header("포탈")]
     [Tooltip("포탈이 생기는 곳: 날아오는 쪽 화면 끝에서 안쪽으로 이만큼 (칸 대비). 격자에 너무 가까우면 격자 바로 바깥 반 칸에 생긴다.")]
     [Min(0f)] public float portalScreenMargin = 0.5f;
@@ -65,6 +68,10 @@ public class BlockSettings
 
     [Tooltip("옆에서 들어가려다 막혔을 때 닿은 표시를 유지하는 시간 (초)")]
     [Min(0f)] public float bumpHoldTime = 0.12f;
+
+    [Header("겹친 포탄")]
+    [Tooltip("다른 포탄(일반 포탄, 유도탄, 부메랑, 분열탄)이 직사각형과 겹치면 이 색으로 그려서 직사각형 위에서도 보이게 한다.")]
+    public Color overlapProjectileColor = new Color(0.5f, 0.5f, 0.5f, 1f);
 
     [Header("소리")]
     [Tooltip("직사각형 앞면이 격자에 닿는 순간(time) 나는 소리")]
@@ -122,6 +129,10 @@ public class BlockObstacle : LevelObstacle
     float lastBumpTime = float.NegativeInfinity;   // 옆에서 막힌 마지막 노래 시간
     float lastPushTime = float.NegativeInfinity;   // 하트를 민 마지막 노래 시간
     float currentSongTime;
+    float bodyAlong;               // 지금 그린 직사각형의 날아가는 방향 길이 (월드)
+    float bodyAcross;              // 수직 방향 길이 (월드)
+    bool bodyClipped;              // 뒤쪽이 포탈에 잘려 있는지 (그동안 뒤 모서리는 각지게)
+    Rect bodyRect;                 // 지금 그린 직사각형의 영역 (월드)
     readonly List<Vector2Int> blockedCells = new List<Vector2Int>();   // 지금 막아 둔 칸
     readonly List<Vector2Int> coveredCells = new List<Vector2Int>();
 
@@ -165,9 +176,15 @@ public class BlockObstacle : LevelObstacle
         root = new GameObject($"Block {Data.side} {Data.line} @{Data.time:0.##}");
         root.transform.SetParent(Context.container, false);
         portalGlow = ShapeSprites.CreateRenderer("PortalGlow", root.transform, ShapeSprites.GlowFan, Context.Color, settings.glowSortingOrder);
-        touch = ShapeSprites.CreateRenderer("BlockTouch", root.transform, ShapeSprites.Square, Context.Color, settings.sortingOrder - 1);
+        touch = ShapeSprites.CreateRenderer("BlockTouch", root.transform, ShapeSprites.RoundedRect(true), Context.Color, settings.sortingOrder - 1);
         touch.enabled = false;
-        body = ShapeSprites.CreateRenderer("Block", root.transform, ShapeSprites.Square, Context.Color, settings.sortingOrder);
+        body = ShapeSprites.CreateRenderer("Block", root.transform, ShapeSprites.RoundedRect(true), Context.Color, settings.sortingOrder);
+
+        // 모서리가 둥근 9분할 그림을 늘려 쓴다. 로컬 x가 날아가는 방향이 되도록 돌려 둔다.
+        body.drawMode = SpriteDrawMode.Sliced;
+        touch.drawMode = SpriteDrawMode.Sliced;
+        body.transform.rotation = glowRotation;
+        touch.transform.rotation = glowRotation;
         portalLine = ShapeSprites.CreateRenderer("Portal", root.transform, ShapeSprites.Square, Context.Color, settings.portalSortingOrder);
 
         // 렌더러 색은 1을 넘을 수 없으므로, 포탈 선의 밝기는 머티리얼 색에 넣는다.
@@ -239,10 +256,10 @@ public class BlockObstacle : LevelObstacle
         touch.enabled = visible;
         if (!visible) return;
 
-        float pad = settings.touchPadding * Context.CellSize * 2f;
-        Vector3 size = body.transform.localScale;
+        // 직사각형보다 한쪽마다 pad만큼 크고, 모서리도 그만큼 더 둥글게 해서 테두리 두께가 고르게 보이게 한다.
+        float pad = settings.touchPadding * Context.CellSize;
         touch.transform.position = body.transform.position;
-        touch.transform.localScale = new Vector3(size.x + pad, size.y + pad, 1f);
+        SetRoundedSize(touch, bodyAlong + pad * 2f, bodyAcross + pad * 2f, settings.cornerRadius * Context.CellSize + pad, bodyClipped);
         touch.color = WithAlpha(Context.Color, settings.touchAlpha * Mathf.SmoothStep(0f, 1f, touchLevel));
     }
 
@@ -328,10 +345,37 @@ public class BlockObstacle : LevelObstacle
             ? new Vector2(grid.EdgeToWorldX(alongMax), grid.EdgeToWorldY(acrossHigh))
             : new Vector2(grid.EdgeToWorldX(acrossHigh), grid.EdgeToWorldY(alongMax));
 
+        float sizeX = Mathf.Max(0f, max.x - min.x);
+        float sizeY = Mathf.Max(0f, max.y - min.y);
+        bodyAlong = horizontal ? sizeX : sizeY;
+        bodyAcross = horizontal ? sizeY : sizeX;
+        bodyClipped = back * sign < portalCell * sign;   // 아직 포탈에서 다 나오지 않았다
+
         body.enabled = true;
+        bodyRect = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
         body.transform.position = (min + max) * 0.5f;
-        body.transform.localScale = new Vector3(Mathf.Max(0f, max.x - min.x), Mathf.Max(0f, max.y - min.y), 1f);
+        SetRoundedSize(body, bodyAlong, bodyAcross, settings.cornerRadius * Context.CellSize, bodyClipped);
         body.color = Context.Color;
+    }
+
+    /// <summary>보이는 직사각형의 영역. 유도탄이 닿으면 터지고, 겹친 포탄은 회색으로 그린다.</summary>
+    public override bool TryGetSolidRect(out Rect rect)
+    {
+        rect = bodyRect;
+        return body != null && body.enabled;
+    }
+
+    /// <summary>
+    /// 모서리가 둥근 사각형의 크기를 정한다. (along = 날아가는 방향, across = 수직 방향, 월드 단위)
+    /// 그림은 둥근 반지름이 로컬 1단위라서, 반지름만큼 키우고(localScale) 크기는 그 비율로 나눠 넣는다.
+    /// 반지름은 짧은 변의 절반을 넘지 않게 한다. clipped면 뒤쪽 모서리는 각지게 그린다.
+    /// </summary>
+    static void SetRoundedSize(SpriteRenderer renderer, float along, float across, float radius, bool clipped)
+    {
+        radius = Mathf.Max(0.0001f, Mathf.Min(radius, along * 0.5f, across * 0.5f));
+        renderer.sprite = ShapeSprites.RoundedRect(!clipped);
+        renderer.transform.localScale = new Vector3(radius, radius, 1f);
+        renderer.size = new Vector2(along / radius, across / radius);
     }
 
     /// <summary>직사각형이 걸친 칸을 막는다. 옆에서 하트가 들어올 수 없다.</summary>

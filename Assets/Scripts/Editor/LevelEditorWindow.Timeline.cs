@@ -313,7 +313,22 @@ public partial class LevelEditorWindow
         switch (e.GetTypeForControl(id))
         {
             case EventType.MouseDown:
-                if (e.button != 0 || !area.Contains(e.mousePosition)) break;
+                if (!area.Contains(e.mousePosition)) break;
+
+                // 오른쪽 클릭: 가까운 하늘색 표시(표시 키로 남긴 것) 하나를 지운다.
+                if (e.button == 1)
+                {
+                    int mark = MarkAt(ruler.x, e.mousePosition.x);
+                    if (mark >= 0)
+                    {
+                        Undo.RecordObject(this, "표시 지우기");
+                        marks.RemoveAt(mark);
+                        e.Use();
+                    }
+                    break;
+                }
+
+                if (e.button != 0) break;
                 GUI.FocusControl(null);
                 GUIUtility.hotControl = id;
                 cursorTime = Snap(XToTime(ruler.x, e.mousePosition.x));
@@ -341,6 +356,7 @@ public partial class LevelEditorWindow
 
     static readonly Color PlayheadColor = new Color(0.35f, 1f, 0.45f);
     static readonly Color HitColor = new Color(1f, 0.3f, 0.3f);
+    static readonly Color MarkColor = new Color(0.35f, 0.8f, 1f);
 
     /// <summary>미리보기 중 재생 위치가 화면 밖으로 나가면 따라가도록 타임라인을 넘긴다.</summary>
     void FollowPlayhead(float trackWidth)
@@ -353,29 +369,50 @@ public partial class LevelEditorWindow
     }
 
     /// <summary>
-    /// 미리보기 표시: 재생 위치(초록 세로선)와 맞은 곳(빨간 표시).
-    /// 맞은 곳은 미리보기를 멈춘 뒤에도 다음 미리보기 전까지 남는다.
+    /// 미리보기 표시: 재생 위치(초록 세로선), 맞은 곳(빨간 표시), 표시 키로 남긴 곳(하늘색 표시).
+    /// 맞은 곳은 미리보기를 멈춘 뒤에도 다음 미리보기 전까지, 표시 키로 남긴 곳은 지우기 전까지 남는다.
     /// </summary>
     void DrawPreviewOverlay(Rect rect)
     {
         if (Event.current.type != EventType.Repaint) return;
 
-        float left = rect.x + HeaderWidth;
         float bottom = rect.yMax - ScrollbarHeight;
 
-        foreach (float hit in LevelPreview.HitTimes)
-        {
-            float x = TimeToX(rect.x, hit);
-            if (x < left || x > rect.xMax) continue;
-            EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 3f, RulerHeight), HitColor);
-            EditorGUI.DrawRect(new Rect(x, rect.y + RulerHeight, 1f, bottom - rect.y - RulerHeight), new Color(HitColor.r, HitColor.g, HitColor.b, 0.35f));
-        }
+        foreach (float mark in marks) DrawTimeMarker(rect, bottom, mark, MarkColor);
+        foreach (float hit in LevelPreview.HitTimes) DrawTimeMarker(rect, bottom, hit, HitColor);
 
         if (IsPreviewing && sceneClock != null)
         {
             float x = TimeToX(rect.x, sceneClock.SongTime);
-            if (x >= left && x <= rect.xMax) EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 2f, bottom - rect.y), PlayheadColor);
+            if (x >= rect.x + HeaderWidth && x <= rect.xMax) EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 2f, bottom - rect.y), PlayheadColor);
         }
+    }
+
+    /// <summary>화면 x 위치에서 가장 가까운 하늘색 표시의 번호. 몇 픽셀 안에 없으면 -1.</summary>
+    int MarkAt(float left, float x)
+    {
+        const float PickDistance = 6f;   // 이만큼(픽셀) 가까우면 그 표시를 고른다
+        int best = -1;
+        float bestDistance = PickDistance;
+        for (int i = 0; i < marks.Count; i++)
+        {
+            float distance = Mathf.Abs(TimeToX(left, marks[i]) - x);
+            if (distance <= bestDistance)
+            {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>시간 하나를 눈금 위 진한 막대와 아래로 이어지는 옅은 세로선으로 표시한다.</summary>
+    void DrawTimeMarker(Rect rect, float bottom, float time, Color color)
+    {
+        float x = TimeToX(rect.x, time);
+        if (x < rect.x + HeaderWidth || x > rect.xMax) return;
+        EditorGUI.DrawRect(new Rect(x - 1f, rect.y, 3f, RulerHeight), color);
+        EditorGUI.DrawRect(new Rect(x, rect.y + RulerHeight, 1f, bottom - rect.y - RulerHeight), new Color(color.r, color.g, color.b, 0.35f));
     }
 
     AudioClip cachedClip;

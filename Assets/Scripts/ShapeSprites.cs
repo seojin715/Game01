@@ -74,6 +74,39 @@ public static class ShapeSprites
         }
     }
 
+    /// <summary>
+    /// 모서리가 둥근 흰 사각형. 9분할(Sliced) 스프라이트라서 SpriteRenderer.drawMode를 Sliced로 두고
+    /// size로 크기를 정하면 늘려도 모서리가 찌그러지지 않는다. 둥근 반지름이 로컬 1단위다.
+    /// roundBack이 false면 뒤쪽(-x) 두 모서리는 각지게 둔다. (포탈에서 나오는 중처럼 뒤가 잘린 모양)
+    /// </summary>
+    public static Sprite RoundedRect(bool roundBack)
+    {
+        string key = roundBack ? "RoundedRect" : "RoundedRectFront";
+        if (shapeSprites.TryGetValue(key, out var sprite) && sprite != null) return sprite;
+
+        const int radius = 32;               // 둥근 모서리 반지름 (픽셀)
+        const int size = radius * 2 + 2;     // 가운데에 늘어날 자리 2픽셀
+        var raw = Rasterize("Runtime" + key, (x, y) =>
+        {
+            // 픽셀 좌표로 바꿔서, 가장 가까운 모서리 원의 중심과의 거리를 잰다.
+            float u = (x + 0.5f) * size;
+            float v = (y + 0.5f) * size;
+            float dx = Mathf.Max(u - (size - radius), 0f);
+            if (roundBack) dx = Mathf.Max(dx, radius - u);
+            float dy = Mathf.Max(radius - v, v - (size - radius), 0f);
+            return dx * dx + dy * dy <= radius * radius;
+        }, size, size);
+
+        // 같은 그림으로 9분할 경계를 넣은 스프라이트를 다시 만든다. 반지름(픽셀)을 월드 1단위로 둔다.
+        sprite = Sprite.Create(raw.texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), radius, 0,
+            SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+        sprite.name = raw.name;
+        if (Application.isPlaying) UnityEngine.Object.Destroy(raw);   // 그림(텍스처)은 남기고 처음 스프라이트만 지운다.
+        else UnityEngine.Object.DestroyImmediate(raw);
+        shapeSprites[key] = sprite;
+        return sprite;
+    }
+
     /// <summary>지름이 월드 1단위인 흰 원 (속이 찬 원)</summary>
     public static Sprite Circle => GetOrCreate("Circle", (x, y) => x * x + y * y <= 0.25f);
 

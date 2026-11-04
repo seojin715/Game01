@@ -29,7 +29,7 @@ public class BoomerangSettings
     [Min(0.01f)] public float catchTime = 0.08f;
 
     [Header("사거리 표시")]
-    [Tooltip("켜면 발사기가 들어올 때부터 부메랑이 돌아올 때까지, 날아갈 길을 끝이 V자로 파인 반투명 띠 하나로 보여 준다. 파인 곳 가운데가 되돌아오는 지점이다.")]
+    [Tooltip("켜면 발사기가 들어올 때부터 부메랑이 되돌아오는 지점에 닿을 때까지, 날아갈 길을 끝이 V자로 파인 반투명 띠 하나로 보여 준다. 파인 곳 가운데가 되돌아오는 지점이다.")]
     public bool showRange = true;
 
     [Tooltip("띠의 폭 (칸 대비)")]
@@ -40,6 +40,9 @@ public class BoomerangSettings
 
     [Tooltip("띠의 불투명도")]
     [Range(0f, 1f)] public float ribbonAlpha = 0.2f;
+
+    [Tooltip("부메랑이 되돌아오는 지점에 닿은 뒤 띠가 옅어지며 사라지는 시간 (초)")]
+    [Min(0.01f)] public float ribbonFadeTime = 0.15f;
 
     [Tooltip("격자 선(-10)보다 높게, 하트(10)보다 낮게")]
     public int rangeSortingOrder = -5;
@@ -114,6 +117,7 @@ public class BoomerangObstacle : LevelObstacle
     readonly float flightTime;          // 나갔다 돌아오기까지 걸리는 시간
     readonly float fireTime;
     readonly float returnTime;          // 발사기로 돌아오는 시간
+    readonly float turnTime;            // 되돌아오는 지점에 닿아 멈추는 시간
     readonly float enterStart;
     readonly float enterTime;           // 발사기가 제자리까지 날아오는 시간 (레벨 값이 없으면 설정값)
     readonly float chargeStart;
@@ -156,6 +160,7 @@ public class BoomerangObstacle : LevelObstacle
         float timeToEdge = (launchSpeed - Mathf.Sqrt(launchSpeed * launchSpeed - 2f * deceleration * toEdge)) / deceleration;
         fireTime = data.time - timeToEdge;
         returnTime = fireTime + flightTime;
+        turnTime = fireTime + flightTime * 0.5f;
 
         enterTime = data.enterTime > 0f ? data.enterTime : settings.enterTime;
         float lead = Mathf.Max(settings.leadTime, enterTime + settings.chargeTime);
@@ -256,13 +261,13 @@ public class BoomerangObstacle : LevelObstacle
         launcher.color = WithAlpha(Context.Color, alpha);
     }
 
-    /// <summary>사거리 표시: 발사기와 함께 나타나고, 부메랑이 발사기로 돌아오면 옅어지며 사라진다.</summary>
+    /// <summary>사거리 표시: 발사기와 함께 나타나고, 부메랑이 되돌아오는 지점에 닿으면 옅어지며 사라진다.</summary>
     void UpdateRange(float t)
     {
         if (rangeRibbon == null) return;
 
         float alpha = EaseOutCubic((t - enterStart) / enterTime);
-        if (t >= returnTime) alpha *= 1f - Mathf.Clamp01((t - returnTime) / settings.exitTime);
+        if (t >= turnTime) alpha *= 1f - Mathf.Clamp01((t - turnTime) / settings.ribbonFadeTime);
 
         rangeRibbon.color = WithAlpha(Context.Color, settings.ribbonAlpha * alpha);
     }

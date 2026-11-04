@@ -176,7 +176,7 @@ public class ObstacleData
            + "이때 side는 left/right/top/bottom 말고 row(왼쪽·오른쪽 중), col(위·아래 중), any(네 쪽 중)도 쓸 수 있다.")]
     public string target;
 
-    [Tooltip("target이 random일 때 발사기는 기본으로 이미 있는(또는 그동안 나올) 자리를 피하고, 빈자리가 없으면 나오지 않는다. 레이저는 다른 레이저가 있는 줄(반대쪽 벽 포함)도 피한다. true면 겹쳐도 된다. (발사기가 있는 장애물만)")]
+    [Tooltip("target이 random이나 player일 때 발사기는 기본으로 이미 있는(또는 그동안 나올) 자리를 피한다. random은 빈자리에서 고르고, player는 하트 줄이 차 있으면 빈 무작위 자리로 옮긴다. 빈자리가 없으면 나오지 않는다. 레이저는 다른 레이저가 있는 줄(반대쪽 벽 포함)도 피한다. true면 겹쳐도 된다. (발사기가 있는 장애물만)")]
     public bool allowOverlap;
 
     [Tooltip("target이 random일 때, 쪽만 무작위로 고르고 줄은 line으로 정해 둔다. 고른 쪽에 그 줄이 없으면 그 쪽은 빼고, 어느 쪽에도 없으면 나오지 않는다. (바닥 포탄, 분열탄 제외)")]

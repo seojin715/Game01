@@ -123,7 +123,7 @@ public static class LevelJsonWriter
 
         // 자리를 나타날 때 정하는 장애물(target)과 발사기가 날아오는 쪽(enterFrom)은 정했을 때만 적는다.
         if (!string.IsNullOrEmpty(o.target)) sb.Append(", \"target\": ").Append(Text(o.target));
-        if (o.allowOverlap && o.target == "random") sb.Append(", \"allowOverlap\": true");
+        if (o.allowOverlap && (o.target == "random" || o.target == "player")) sb.Append(", \"allowOverlap\": true");
         if (o.fixLine && o.target == "random" && o.type != "floor" && o.type != "burst") sb.Append(", \"fixLine\": true");
         if (!string.IsNullOrEmpty(o.enterFrom)) sb.Append(", \"enterFrom\": ").Append(Text(o.enterFrom));
         if (o.launcherAtBase) sb.Append(", \"launcherAtBase\": true");
