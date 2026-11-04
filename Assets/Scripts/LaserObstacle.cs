@@ -49,6 +49,9 @@ public class LaserSettings
     [Tooltip("경고가 시작될 때 발사기가 화면 밖에서 제자리까지 오는 데 걸리는 시간")]
     [Min(0.01f)] public float enterTime = 0.35f;
 
+    [Tooltip("날아오는 곡선. 1이면 일정한 속도로 서서히 오고, 클수록 처음에 빠르게 와서 자리 근처에서 오래 머문다.")]
+    [Range(1f, 4f)] public float enterCurve = 1.5f;
+
     [Tooltip("발사 몇 초 전부터 원이 커지며 날개가 벌어지는지. 레벨의 time에 원 지름이 레이저 두께와 같아지며 발사한다.")]
     [Min(0.01f)] public float openTime = 0.3f;
 
@@ -99,8 +102,8 @@ public class LaserSettings
     [Tooltip("레이저가 켜지는 순간 나는 소리 (Assets/Audio/SFX). 비워 두면 소리가 나지 않는다.")]
     public AudioClip fireSound;
 
-    [Tooltip("발사 소리 크기 (0~1). 배경 노래를 가리지 않게 작게 둔다. 여러 줄이 동시에 켜져도 한 번만 난다.")]
-    [Range(0f, 1f)] public float fireVolume = 0.15f;
+    [Tooltip("발사 소리 크기 (0~4). 1이 파일의 원래 크기이고, 1보다 크면 더 커진다. 여러 줄이 동시에 켜져도 한 번만 난다.")]
+    [Range(0f, SoundEffects.MaxVolume)] public float fireVolume = 0.15f;
 
     [Tooltip("발사 소리를 레이저가 켜지는 순간보다 얼마나 일찍(-) 또는 늦게(+) 낼지 (노래 시간, 초). "
            + "소리가 서서히 커지는 파일이면 가장 큰 부분이 박자에 오도록 앞당긴다. 예: -0.1이면 0.1초 먼저")]
@@ -170,7 +173,9 @@ public class LaserObstacle : LevelObstacle
     readonly float wingLength;
     readonly float flickerSeed;     // 레이저마다 떨림이 조금씩 다르게
 
-    readonly float warnStart;       // 경고 시작 = 발사기가 들어오기 시작
+    readonly float warnStart;       // 경고 시작
+    readonly float enterStart;      // 발사기가 들어오기 시작 (평소에는 경고 시작과 같다)
+    readonly float enterTime;       // 발사기가 제자리까지 날아오는 시간 (레벨 값이 없으면 설정값)
     readonly float openStart;       // 원이 커지며 날개가 벌어지기 시작
     readonly float activeStart;     // = time
     readonly float activeEnd;       // = time + holdTime
@@ -220,8 +225,8 @@ public class LaserObstacle : LevelObstacle
         gridLength = (horizontal ? bounds.Width : bounds.Height) * cell;
         gridCenter = nearEdge + direction * (gridLength * 0.5f);
 
-        origin = nearEdge - direction * (settings.launcherDistance * cell);
-        beamLength = gridLength + settings.launcherDistance * cell;
+        origin = LauncherEdgePoint(grid, side, data) - direction * (settings.launcherDistance * cell);
+        beamLength = gridLength + Vector2.Distance(origin, nearEdge);
         wingLength = settings.launcherLength * cell;
         offscreen = OutsideView(context.view, origin, EnterDirection(data, -direction), wingLength);
 
@@ -233,14 +238,23 @@ public class LaserObstacle : LevelObstacle
         float holdTime = data.holdTime > 0f ? data.holdTime : settings.defaultHoldTime;
 
         warnStart = data.time - warnTime;
-        openStart = Mathf.Max(warnStart, data.time - settings.openTime);
+        // 차지(원이 커지며 날개가 벌어지는 시간). 레벨에 정해 두면 경고보다 길어도 그대로 쓴다.
+        openStart = data.chargeTime > 0f
+            ? data.time - data.chargeTime
+            : Mathf.Max(warnStart, data.time - settings.openTime);
+
+        // 날아오는 시간을 정해 두거나 차지가 경고보다 먼저 시작하면, 날개가 벌어지기 전에 도착하도록 필요한 만큼 일찍 들어온다.
+        enterTime = data.enterTime > 0f ? data.enterTime : settings.enterTime;
+        enterStart = data.enterTime > 0f || openStart < warnStart ? Mathf.Min(warnStart, openStart - enterTime) : warnStart;
         activeStart = data.time;
         activeEnd = data.time + holdTime;
         closeEnd = activeEnd + settings.fadeOutTime;
         exitEnd = closeEnd + settings.exitTime;
 
-        AppearTime = warnStart;
+        AppearTime = enterStart;
         EndTime = exitEnd;
+        LauncherSide = side;
+        LauncherEndTime = exitEnd;
     }
 
     protected override void OnSpawn()
@@ -370,7 +384,7 @@ public class LaserObstacle : LevelObstacle
     void UpdateLauncher(float t)
     {
         // 들어오고 나가기
-        float enter = EaseOutCubic((t - warnStart) / settings.enterTime);
+        float enter = EnterCurve((t - enterStart) / enterTime, settings.enterCurve);
         float exit = Mathf.Clamp01((t - closeEnd) / settings.exitTime);
         float exitEased = exit * exit * exit;   // 처음엔 천천히, 나중엔 빠르게 나간다.
         Vector2 position = t < closeEnd

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "title": "새 레벨",
+  "audioFile": "",
+  "bpm": 120.0,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "homing", "time": 0.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "homing", "time": 1.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "homing", "time": 2.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "homing", "time": 3.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "homing", "time": 4.0, "side": "any", "line": 2, "target": "random" }
+  ]
+}

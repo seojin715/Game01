@@ -154,7 +154,7 @@ MonoBehaviour:
   sortingOrder: -10
   warningAlpha: 0.25
   warningSortingOrder: -12
-  portalWallColor: {r: 1, g: 1, b: 1, a: 1}
+  portalWallColor: {r: 0, g: 1, b: 1, a: 1}
   portalWallThickness: 2
   portalWallIntensity: 1.5
   gateThickness: 2.5
@@ -183,10 +183,10 @@ MonoBehaviour:
   maxRows: 7
   wallMoveTime: 0.5
   defaultWallWarnTime: 1
-  portalColor: {r: 1, g: 0.26666668, b: 0.26666668, a: 1}
+  portalColor: {r: 1, g: 0.5019608, b: 0, a: 1}
   portalTransitionTime: 0.3
   fitCamera: 1
-  cameraMargin: 0.4
+  cameraMargin: 0.8
   setCameraBackground: 1
   backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   targetCamera: {fileID: 0}
@@ -557,7 +557,7 @@ MonoBehaviour:
   songFileName: MEGALOVANIA.mp3
   playOnStart: 1
   volume: 0.8
-  leadIn: 2
+  leadIn: 1
   resyncThreshold: 0.05
   correctionSpeed: 5
 --- !u!82 &854805374
@@ -715,6 +715,8 @@ MonoBehaviour:
   startDelay: 0.3
   stepTime: 1
   fadeTime: 0.2
+  fillInterval: 0.03
+  fillFadeTime: 0.5
   maxFrameStep: 0.033333335
   ghostAlpha: 0.05
   ghostTime: 0.5
@@ -816,6 +818,8 @@ MonoBehaviour:
   approachRatio: 0.4
   referenceFps: 60
   snapDistance: 0.01
+  teleportSound: {fileID: 8300000, guid: b4f03f2a7a5abf741a6124a73b069f51, type: 3}
+  teleportVolume: 0.4
 --- !u!4 &1003268479
 Transform:
   m_ObjectHideFlags: 0
@@ -952,6 +956,8 @@ MonoBehaviour:
   maxLives: 3
   invincibleTime: 1.5
   invertScreenWhileInvincible: 1
+  hitSound: {fileID: 8300000, guid: afd6c53d52d36d442a3c50ace78c20bb, type: 3}
+  hitVolume: 1
   logHits: 0
   motionBlurWhileInvincible: 1
   motionBlurStrength: 0.8
@@ -990,7 +996,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1cf12744cff0494d92203c5d75ead01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LevelPlayer
-  levelFile: {fileID: 4900000, guid: 5b652caaa88f1a049b9bfec07a6afe4d, type: 3}
+  levelFile: {fileID: 4900000, guid: 5240a251668f9794cba8a0ceec166ff8, type: 3}
   clock: {fileID: 0}
   grid: {fileID: 0}
   heart: {fileID: 0}
@@ -998,16 +1004,17 @@ MonoBehaviour:
   beatFlash: {fileID: 0}
   targetCamera: {fileID: 0}
   cannon:
-    speed: 8
+    speed: 5
     ballSize: 0.5
     ballHitScale: 0.8
     ballAppearTime: 0.06
     launcherSize: 0.6
     launcherThickness: 0.14
     launcherDistance: 0.55
-    leadTime: 1
+    leadTime: 0.6
     enterTime: 0.35
-    chargeTime: 0.15
+    enterCurve: 1.5
+    chargeTime: 0.25
     chargeScale: 0.75
     recoverTime: 0.1
     stayTime: 0.25
@@ -1016,13 +1023,13 @@ MonoBehaviour:
     blinkAlpha: 0.3
     exitTime: 0.2
     sound:
-      clip: {fileID: 8300000, guid: 1c4ab427693891f449d2622da7243913, type: 3}
-      volume: 0.25
+      clip: {fileID: 8300000, guid: 6589aa94f41ebe34aa076537f3ce727a, type: 3}
+      volume: 0
       offset: -0.15
     launcherSortingOrder: 5
     ballSortingOrder: 20
   laser:
-    defaultWarnTime: 0.9
+    defaultWarnTime: 1
     defaultHoldTime: 0.4
     thickness: 1
     hitScale: 0.8
@@ -1032,7 +1039,8 @@ MonoBehaviour:
     launcherDistance: 0.5
     closedGap: 0.06
     enterTime: 0.35
-    openTime: 0.3
+    enterCurve: 1.5
+    openTime: 0.6
     openWobbleAmount: 0.5
     openWobbleRate: 15
     exitTime: 0.25
@@ -1073,9 +1081,13 @@ MonoBehaviour:
     blinkAlpha: 0.3
     fadeOutTime: 0.15
     sound:
-      clip: {fileID: 0}
-      volume: 0.15
-      offset: 0
+      clip: {fileID: 8300000, guid: b25ff7fc0e7484046b2f6ae13207b0ed, type: 3}
+      volume: 3
+      offset: -0.25
+    offSound:
+      clip: {fileID: 8300000, guid: 37553a1ca54ae8448af2a30a83bfc9f5, type: 3}
+      volume: 1
+      offset: -0.5
     warningSortingOrder: -5
     blockSortingOrder: 7
   homing:
@@ -1096,15 +1108,20 @@ MonoBehaviour:
     launcherDistance: 0.55
     leadTime: 1
     enterTime: 0.35
+    enterCurve: 1.5
     kickDistance: 0.25
     kickTime: 0.18
     stayTime: 0.3
     exitTime: 0.2
     stepTime: 0.008333334
     sound:
-      clip: {fileID: 0}
-      volume: 0.15
-      offset: 0
+      clip: {fileID: 8300000, guid: 8dfa457e70618024fae70eda0feff5fa, type: 3}
+      volume: 0.75
+      offset: -0.15
+    explodeSound:
+      clip: {fileID: 8300000, guid: f0a7e07cd3d93fe45baf260e99081b45, type: 3}
+      volume: 0.75
+      offset: -0.5
     launcherSortingOrder: 5
     missileSortingOrder: 20
     explosionSortingOrder: 21
@@ -1120,16 +1137,16 @@ MonoBehaviour:
     popTime: 0.06
     hideTime: 0.25
     sound:
-      clip: {fileID: 0}
-      volume: 0.15
-      offset: 0
+      clip: {fileID: 8300000, guid: 2c25b96a8ab4e884bb33d9cf18e26c33, type: 3}
+      volume: 0.75
+      offset: -0.35
     warningSortingOrder: -5
     spikeSortingOrder: 7
   boomerang:
     speed: 9
     defaultRange: 3
     spinSpeed: 900
-    size: 0.55
+    size: 0.65
     hitScale: 0.75
     appearTime: 0.06
     catchTime: 0.08
@@ -1141,8 +1158,9 @@ MonoBehaviour:
     launcherSize: 0.6
     launcherThickness: 0.06
     launcherDistance: 0.55
-    leadTime: 1
+    leadTime: 0.5
     enterTime: 0.35
+    enterCurve: 1.5
     chargeTime: 0.15
     chargeScale: 0.75
     recoverTime: 0.1
@@ -1183,6 +1201,32 @@ MonoBehaviour:
       offset: 0
     warningSortingOrder: -5
     shardSortingOrder: 20
+  block:
+    speed: 6
+    length: 3
+    thickness: 1
+    inset: 0.06
+    portalScreenMargin: 0.5
+    portalExtra: 0.15
+    portalLineWidth: 0.1
+    portalOpenTime: 0.35
+    portalCloseTime: 0.25
+    portalGlowIntensity: 1.75
+    glowLength: 1.2
+    glowAlpha: 0.4
+    pushGap: 0.45
+    touchPadding: 0.12
+    touchAlpha: 0.35
+    touchFadeIn: 0.06
+    touchFadeOut: 0.3
+    bumpHoldTime: 0.12
+    sound:
+      clip: {fileID: 0}
+      volume: 0.15
+      offset: 0
+    sortingOrder: 15
+    portalSortingOrder: 16
+    glowSortingOrder: 14
   dark:
     transitionTime: 0.6
     glowIntensity: 1.25

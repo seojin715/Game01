@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -30,6 +31,7 @@ public partial class LevelEditorWindow
         ("spike", "가시", new Color(0.85f, 0.62f, 1.00f)),
         ("boomerang", "부메랑", new Color(0.40f, 0.95f, 0.80f)),
         ("burst", "분열탄", new Color(1.00f, 0.82f, 0.70f)),
+        ("block", "직사각형", new Color(1.00f, 0.70f, 0.88f)),
         ("wall", "벽 이동", new Color(0.80f, 0.80f, 0.80f)),
         ("portal", "텔레포트", new Color(0.55f, 0.75f, 1.00f)),
         ("dark", "어둠", new Color(0.62f, 0.58f, 0.78f)),
@@ -61,17 +63,29 @@ public partial class LevelEditorWindow
     int dragUndoGroup;
     readonly Dictionary<int, float> dragOriginal = new Dictionary<int, float>();
 
+    // 빈 곳에서 끌어서 네모 안의 장애물 고르기
+    const float BoxStartDistance = 3f;    // 이만큼 움직여야 끌기로 본다 (픽셀). 그보다 작으면 클릭이다.
+    bool boxPressed;                      // 빈 곳을 누르고 있는지
+    bool boxActive;                       // 네모를 그리는 중인지
+    float boxStartTime;                   // 누른 곳의 시간 (끄는 중에 휠로 넘겨도 제자리에 있게)
+    float boxStartY;
+    Vector2 boxEnd;
+    float boxClickTime;                   // 클릭으로 끝나면 주황 커서를 옮길 시간
+    readonly List<int> boxBaseSelection = new List<int>();   // 끌기 전에 고른 것 (Ctrl/Shift로 더할 때 유지한다)
+
     // 곡 파형 (곡이 바뀔 때만 다시 계산한다)
     float[] peaks;
     string peaksKey;
     bool waveformFailed;
 
     GUIStyle markerLabelStyle;
+    float lastTrackWidth = 1f;   // 타임라인 폭 (화살표로 옮길 때 커서를 따라가는 데 쓴다)
 
     void DrawTimeline(Rect rect)
     {
         var e = Event.current;
         float trackWidth = Mathf.Max(1f, rect.width - HeaderWidth);
+        lastTrackWidth = trackWidth;
 
         Rect ruler = new Rect(rect.x, rect.y, rect.width, RulerHeight);
         Rect wave = new Rect(rect.x, ruler.yMax, rect.width, WaveHeight);
@@ -455,6 +469,7 @@ public partial class LevelEditorWindow
             foreach (int i in rowIndices)
             {
                 string label = MarkerLabel(obstacles[i]);
+                if (obstacles[i].group != 0) label += " #" + obstacles[i].group;   // 묶음 번호
                 float width = Mathf.Max(18f, markerLabelStyle.CalcSize(new GUIContent(label)).x + 8f);
                 float x = TimeToX(0f, obstacles[i].time) - width * 0.5f;
 
@@ -487,7 +502,8 @@ public partial class LevelEditorWindow
         if (!string.IsNullOrEmpty(o.target))
         {
             string mark = o.target == "player" ? "P" : "?";
-            return o.type == "floor" || o.type == "burst" ? mark + "칸" : mark + TargetSideLetter(o.side);
+            if (o.type == "floor" || o.type == "burst") return mark + "칸";
+            return mark + TargetSideLetter(o.side) + (o.target == "random" && o.fixLine ? o.line.ToString() : "");
         }
 
         switch (o.type)
@@ -499,6 +515,7 @@ public partial class LevelEditorWindow
             case "burst":
                 return o.cell != null && o.cell.Length >= 2 ? $"{o.cell[0]},{o.cell[1]}" : "?";
             case "wall":
+                if (o.IsMultiWall) return string.Join(" ", o.WallMoves().Select(m => $"{SideLetter(m.side.ToString().ToLowerInvariant())}{m.move:+0;-0}"));
                 return $"{SideLetter(o.side)}={o.size}";
             case "portal":
             case "dark":
@@ -555,6 +572,7 @@ public partial class LevelEditorWindow
             DrawDurations();
             DrawMarkers();
             DrawCursorLine(0f, 0f, contentHeight);
+            DrawSelectionBox();
         }
 
         HandleRowMouse(width);
@@ -586,7 +604,7 @@ public partial class LevelEditorWindow
                     hold = o.blockTime > 0f ? o.blockTime : defaults.floor.defaultBlockTime;
                     break;
                 case "wall":
-                    warn = (o.warnTime > 0f ? o.warnTime : defaults.wallWarnTime) + defaults.wallMoveTime;
+                    warn = (o.warnTime > 0f ? o.warnTime : defaults.wallWarnTime) + (o.moveTime > 0f ? o.moveTime : defaults.wallMoveTime);
                     break;
             }
 
@@ -657,7 +675,8 @@ public partial class LevelEditorWindow
     /// <summary>
     /// 줄 영역의 마우스 동작.
     /// 장애물 클릭: 고르기 (Ctrl/Shift면 추가로 고르기), 끌기: 고른 것 모두 옮기기 (배치 단위에 맞춤)
-    /// 빈 곳 클릭: 고르기 해제 + 주황 커서 옮기기, 빈 곳 더블클릭: 그 줄의 종류를 추가, 오른쪽 클릭: 메뉴
+    /// 빈 곳 클릭: 고르기 해제 + 주황 커서 옮기기, 빈 곳에서 끌기: 네모 안의 장애물 고르기 (Ctrl/Shift면 더하기)
+    /// 빈 곳 더블클릭: 그 줄의 종류를 추가, 오른쪽 클릭: 메뉴
     /// </summary>
     void HandleRowMouse(float width)
     {
@@ -718,7 +737,17 @@ public partial class LevelEditorWindow
                 else
                 {
                     if (!additive) selection.Clear();
-                    cursorTime = time;
+
+                    // 끌면 네모로 고르고, 그냥 놓으면 주황 커서를 옮긴다.
+                    GUIUtility.hotControl = id;
+                    boxPressed = true;
+                    boxActive = false;
+                    boxStartTime = XToTime(0f, Mathf.Max(p.x, HeaderWidth));
+                    boxStartY = p.y;
+                    boxEnd = p;
+                    boxClickTime = time;
+                    boxBaseSelection.Clear();
+                    boxBaseSelection.AddRange(selection);
                 }
 
                 e.Use();
@@ -728,6 +757,17 @@ public partial class LevelEditorWindow
             case EventType.MouseDrag:
             {
                 if (GUIUtility.hotControl != id) break;
+
+                if (boxPressed)
+                {
+                    boxEnd = e.mousePosition;
+                    Vector2 start = new Vector2(TimeToX(0f, boxStartTime), boxStartY);
+                    if (!boxActive && Vector2.Distance(start, boxEnd) < BoxStartDistance) break;   // 클릭하다 살짝 움직인 것은 무시
+                    boxActive = true;
+                    SelectInBox();
+                    e.Use();
+                    break;
+                }
 
                 float dx = e.mousePosition.x - dragStartX;
                 if (!dragMoved && Mathf.Abs(dx) < 3f) break;   // 클릭하다 살짝 움직인 것은 무시
@@ -748,11 +788,49 @@ public partial class LevelEditorWindow
             case EventType.MouseUp:
                 if (GUIUtility.hotControl != id) break;
                 GUIUtility.hotControl = 0;
+                if (boxPressed)
+                {
+                    if (!boxActive) cursorTime = boxClickTime;
+                    boxPressed = false;
+                    boxActive = false;
+                    e.Use();
+                    break;
+                }
                 if (dragMoved) Undo.CollapseUndoOperations(dragUndoGroup);   // 한 번 끈 것을 Ctrl+Z 한 번에 되돌린다.
                 dragMoved = false;
                 e.Use();
                 break;
         }
+    }
+
+    /// <summary>지금 끌고 있는 네모 (줄 영역 안의 좌표). 왼쪽 줄 이름 칸은 포함하지 않는다.</summary>
+    Rect SelectionBox()
+    {
+        float startX = TimeToX(0f, boxStartTime);
+        float xMin = Mathf.Max(HeaderWidth, Mathf.Min(startX, boxEnd.x));
+        float xMax = Mathf.Max(HeaderWidth, Mathf.Max(startX, boxEnd.x));
+        return Rect.MinMaxRect(xMin, Mathf.Min(boxStartY, boxEnd.y), xMax, Mathf.Max(boxStartY, boxEnd.y));
+    }
+
+    /// <summary>끌기 전에 고른 것에 네모와 닿는 장애물을 더해 고른다.</summary>
+    void SelectInBox()
+    {
+        Rect box = SelectionBox();
+        selection.Clear();
+        selection.AddRange(boxBaseSelection);
+        foreach (var m in markers)
+        {
+            if (box.Overlaps(m.rect) && !selection.Contains(m.index)) selection.Add(m.index);
+        }
+    }
+
+    void DrawSelectionBox()
+    {
+        if (!boxActive) return;
+
+        Rect box = SelectionBox();
+        EditorGUI.DrawRect(box, new Color(1f, 1f, 1f, 0.1f));
+        DrawOutline(box, new Color(1f, 1f, 1f, 0.8f), 1f);
     }
 
     /// <summary>그 점에 있는 장애물 (나중에 그린 것이 위). 없으면 -1.</summary>

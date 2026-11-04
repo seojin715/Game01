@@ -9,6 +9,7 @@ public class LevelPreviewRequest
 {
     public float startTime;   // 이 노래 시간부터 시작한다
     public string levelJson;  // 에디터에서 편집 중인 레벨 (저장하지 않은 내용 포함)
+    public float speed = 1f;  // 진행 속도 (1이 원래 속도)
 }
 
 /// <summary>
@@ -19,6 +20,7 @@ public class LevelPreviewRequest
 /// - 카운트다운과 준비 시간 없이 요청한 시간부터 노래와 장애물이 나온다. (LevelPlayer, SongClock, Countdown)
 /// - 맞아도 목숨이 줄지 않고, 하트가 잠깐 번쩍이며 맞은 시간을 기록한다. 에디터 타임라인에 빨간 표시로 보인다.
 /// - 에디터에서 레벨을 고치거나 다른 시간을 누르면, 플레이를 멈추지 않고 바로 반영한다. (Pending 값)
+/// - 에디터에서 고른 속도로 게임과 노래가 함께 느리게 흐른다. (Speed, SlowMotion이 적용한다)
 ///
 /// 그냥 ▶로 플레이하면 요청 파일이 없으므로 평소 게임과 똑같다.
 /// </summary>
@@ -42,6 +44,9 @@ public static class LevelPreview
     /// <summary>미리보기 중 에디터가 옮겨 달라고 한 노래 시간. LevelPlayer가 읽고 비운다.</summary>
     public static float? PendingSeek;
 
+    /// <summary>미리보기 진행 속도. 1이 원래 속도이고, 평소 게임에서는 늘 1이다.</summary>
+    public static float Speed { get { EnsureLoaded(); return speed; } set { speed = Mathf.Max(0.05f, value); } }
+
     // 같은 장애물이 여러 프레임 닿아도 한 번만 세도록 두는 간격 (노래 시간, 초)
     const float HitCooldown = 0.3f;
 
@@ -49,16 +54,17 @@ public static class LevelPreview
     static bool active;
     static float startTime;
     static string levelJson;
+    static float speed = 1f;
     static float lastHit = float.NegativeInfinity;
 
     /// <summary>에디터가 쓰고 게임이 읽는 요청 파일 위치 (프로젝트의 Temp 폴더, 유니티를 끄면 지워진다)</summary>
     public static string RequestPath => Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Temp", "LevelPreviewRequest.json");
 
     /// <summary>에디터에서 부른다. 다음 플레이를 미리보기로 시작하게 요청 파일을 쓴다.</summary>
-    public static void WriteRequest(float time, string json)
+    public static void WriteRequest(float time, string json, float previewSpeed)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(RequestPath));
-        File.WriteAllText(RequestPath, JsonUtility.ToJson(new LevelPreviewRequest { startTime = time, levelJson = json }));
+        File.WriteAllText(RequestPath, JsonUtility.ToJson(new LevelPreviewRequest { startTime = time, levelJson = json, speed = previewSpeed }));
     }
 
     /// <summary>미리보기 중 맞았을 때 기록한다. 새로 센 피격이면 true.</summary>
@@ -77,6 +83,7 @@ public static class LevelPreview
         loaded = false;
         active = false;
         levelJson = null;
+        speed = 1f;
         PendingLevelJson = null;
         PendingSeek = null;
         HitTimes.Clear();
@@ -103,6 +110,7 @@ public static class LevelPreview
                 active = true;
                 startTime = request.startTime;
                 levelJson = request.levelJson;
+                Speed = request.speed;
             }
         }
         catch (Exception e)

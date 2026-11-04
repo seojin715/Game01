@@ -336,6 +336,46 @@ public static class ShapeSprites
         return sprite;
     }
 
+    static Sprite glowFanSprite;
+
+    /// <summary>
+    /// 왼쪽 가운데(기준점)에서 오른쪽(+x)으로 갈수록 옅어지는 부드러운 빛. 한 변이 월드 1단위다.
+    /// 위아래 끝도 살짝 옅게 해서 네모난 테두리가 보이지 않게 한다. (직사각형 포탄의 포탈 빛)
+    /// </summary>
+    public static Sprite GlowFan
+    {
+        get
+        {
+            if (glowFanSprite != null) return glowFanSprite;
+
+            const int size = 64;
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                float across = Mathf.Abs((y + 0.5f) / size * 2f - 1f);   // 가운데 0, 위아래 끝 1
+                float edge = 1f - Mathf.Pow(across, 4f);
+                for (int x = 0; x < size; x++)
+                {
+                    float along = 1f - (x + 0.5f) / size;                  // 왼쪽 1, 오른쪽 0
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(255f * along * along * edge));
+                }
+            }
+
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "GlowFan",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            texture.SetPixels32(pixels);
+            texture.Apply();
+
+            glowFanSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            glowFanSprite.name = "GlowFan";
+            return glowFanSprite;
+        }
+    }
+
     /// <summary>주어진 도형 스프라이트로 SpriteRenderer를 가진 오브젝트를 새로 만든다.</summary>
     public static SpriteRenderer CreateRenderer(string name, Transform parent, Sprite sprite, Color color, int sortingOrder)
     {

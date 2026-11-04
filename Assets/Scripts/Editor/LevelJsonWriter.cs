@@ -46,6 +46,14 @@ public static class LevelJsonWriter
             case "homing":
                 SideLine(sb, o);
                 Optional(sb, "speed", o.speed);
+                if (o.type == "homing" && o.straight) sb.Append(", \"straight\": true");   // 유도 끔
+                break;
+
+            case "block":
+                SideLine(sb, o);
+                Optional(sb, "speed", o.speed);
+                Optional(sb, "length", o.length);
+                Optional(sb, "thickness", o.thickness);
                 break;
 
             case "boomerang":
@@ -66,6 +74,7 @@ public static class LevelJsonWriter
                 if (!string.IsNullOrEmpty(o.side)) sb.Append(", \"side\": ").Append(Text(o.side));
                 Optional(sb, "warnTime", o.warnTime);
                 Optional(sb, "holdTime", o.holdTime);
+                Optional(sb, "chargeTime", o.chargeTime);
                 break;
 
             case "floor":
@@ -86,8 +95,19 @@ public static class LevelJsonWriter
 
             case "wall":
                 sb.Append(", \"side\": ").Append(Text(o.side));
-                sb.Append(", \"size\": ").Append(o.size);
+                if (o.IsMultiWall)
+                {
+                    OptionalMove(sb, "moveLeft", o.moveLeft);
+                    OptionalMove(sb, "moveRight", o.moveRight);
+                    OptionalMove(sb, "moveTop", o.moveTop);
+                    OptionalMove(sb, "moveBottom", o.moveBottom);
+                }
+                else
+                {
+                    sb.Append(", \"size\": ").Append(o.size);
+                }
                 Optional(sb, "warnTime", o.warnTime);
+                Optional(sb, "moveTime", o.moveTime);
                 break;
 
             case "portal":
@@ -103,7 +123,12 @@ public static class LevelJsonWriter
 
         // 자리를 나타날 때 정하는 장애물(target)과 발사기가 날아오는 쪽(enterFrom)은 정했을 때만 적는다.
         if (!string.IsNullOrEmpty(o.target)) sb.Append(", \"target\": ").Append(Text(o.target));
+        if (o.allowOverlap && o.target == "random") sb.Append(", \"allowOverlap\": true");
+        if (o.fixLine && o.target == "random" && o.type != "floor" && o.type != "burst") sb.Append(", \"fixLine\": true");
         if (!string.IsNullOrEmpty(o.enterFrom)) sb.Append(", \"enterFrom\": ").Append(Text(o.enterFrom));
+        if (o.launcherAtBase) sb.Append(", \"launcherAtBase\": true");
+        Optional(sb, "enterTime", o.enterTime);
+        if (o.group != 0) sb.Append(", \"group\": ").Append(o.group);
 
         sb.Append(" }");
         return sb.ToString();
@@ -116,6 +141,12 @@ public static class LevelJsonWriter
     }
 
     /// <summary>0보다 클 때만 적는다. (0이면 게임이 기본값을 쓴다)</summary>
+    /// <summary>벽을 움직일 칸 수. 음수도 쓰이고, 0이면 적지 않는다.</summary>
+    static void OptionalMove(StringBuilder sb, string key, int value)
+    {
+        if (value != 0) sb.Append(", \"").Append(key).Append("\": ").Append(value);
+    }
+
     static void Optional(StringBuilder sb, string key, float value)
     {
         if (value > 0f) sb.Append(", \"").Append(key).Append("\": ").Append(Number(value));

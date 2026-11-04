@@ -9,8 +9,8 @@ public class ObstacleSound
     [Tooltip("나는 소리 (Assets/Audio/SFX). 비워 두면 소리가 나지 않는다.")]
     public AudioClip clip;
 
-    [Tooltip("소리 크기 (0~1). 배경 노래를 가리지 않게 작게 둔다. 같은 소리는 한 프레임에 한 번만 난다.")]
-    [Range(0f, 1f)] public float volume = 0.15f;
+    [Tooltip("소리 크기 (0~4). 1이 파일의 원래 크기이고, 1보다 크면 더 커진다. 너무 크면 소리가 찌그러질 수 있다. 같은 소리는 한 프레임에 한 번만 난다.")]
+    [Range(0f, SoundEffects.MaxVolume)] public float volume = 0.15f;
 
     [Tooltip("소리를 원래 순간보다 얼마나 일찍(-) 또는 늦게(+) 낼지 (노래 시간, 초). 소리가 서서히 커지는 파일이면 앞당긴다.")]
     [Range(-0.5f, 0.5f)] public float offset;
@@ -33,10 +33,25 @@ public class ObstacleSound
 /// </summary>
 public static class SoundEffects
 {
+    /// <summary>소리 크기의 최대값. 1은 파일의 원래 크기다.</summary>
+    public const float MaxVolume = 4f;
+
     static AudioSource source;
     static readonly Dictionary<AudioClip, int> lastPlayedFrame = new Dictionary<AudioClip, int>();
 
-    /// <summary>clip을 volume(0~1) 크기로 한 번 튼다. clip이 비어 있으면 아무것도 하지 않는다.</summary>
+    /// <summary>소리 파일을 미리 메모리에 올려 둔다. 처음 틀 때 늦게 나거나 빠지지 않게 한다.</summary>
+    public static void Preload(params AudioClip[] clips)
+    {
+        foreach (var clip in clips)
+        {
+            if (clip != null) clip.LoadAudioData();
+        }
+    }
+
+    /// <summary>
+    /// clip을 volume(0~MaxVolume) 크기로 한 번 튼다. clip이 비어 있으면 아무것도 하지 않는다.
+    /// 1보다 크면 같은 소리를 같은 순간에 겹쳐 틀어서 키운다. (2.5면 1 + 1 + 0.5)
+    /// </summary>
     public static void Play(AudioClip clip, float volume)
     {
         if (clip == null || volume <= 0f) return;
@@ -54,7 +69,10 @@ public static class SoundEffects
         }
 
         source.pitch = Mathf.Max(0.01f, Time.timeScale);   // 슬로우가 걸리면 효과음도 같이 느려진다.
-        source.PlayOneShot(clip, Mathf.Clamp01(volume));
+        for (float left = Mathf.Min(volume, MaxVolume); left > 0f; left -= 1f)
+        {
+            source.PlayOneShot(clip, Mathf.Min(left, 1f));
+        }
     }
 
     // 플레이를 다시 시작하면 지난 기록을 지운다. (도메인 리로드를 꺼 두어서 남아 있을 수 있다)

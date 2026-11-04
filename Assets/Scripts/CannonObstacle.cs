@@ -35,6 +35,9 @@ public class CannonSettings
     [Tooltip("발사기가 화면 밖에서 제자리까지 오는 데 걸리는 시간")]
     [Min(0.01f)] public float enterTime = 0.35f;
 
+    [Tooltip("날아오는 곡선. 1이면 일정한 속도로 서서히 오고, 클수록 처음에 빠르게 와서 자리 근처에서 오래 머문다.")]
+    [Range(1f, 4f)] public float enterCurve = 1.5f;
+
     [Tooltip("발사 직전 수축하는 시간")]
     [Min(0f)] public float chargeTime = 0.15f;
 
@@ -88,6 +91,7 @@ public class CannonObstacle : LevelObstacle
     readonly float speedWorld;       // 초당 월드 거리
     readonly float fireTime;         // 포탄을 쏘는 노래 시간
     readonly float enterStart;
+    readonly float enterTime;        // 발사기가 제자리까지 날아오는 시간 (레벨 값이 없으면 설정값)
     readonly float chargeStart;
     readonly float blinkStart;   // 사라지기 전 깜빡이기 시작
     readonly float exitStart;
@@ -112,7 +116,7 @@ public class CannonObstacle : LevelObstacle
         // 포탄이 들어오는 격자 가장자리 위의 점 (지정한 줄의 한가운데)
         Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
 
-        restPosition = edgePoint - direction * (settings.launcherDistance * cell);
+        restPosition = LauncherEdgePoint(context.grid, side, data) - direction * (settings.launcherDistance * cell);
         offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -direction), launcherWorldSize);
 
         // time에 포탄 중심이 격자 가장자리에 닿도록 쏘는 시간을 거꾸로 계산한다.
@@ -121,7 +125,8 @@ public class CannonObstacle : LevelObstacle
         fireTime = data.time - Vector2.Distance(restPosition, edgePoint) / speedWorld;
 
         // 발사기 등장은 발사보다 앞서 자동으로 시작한다. 들어오고 수축할 시간은 꼭 확보한다.
-        float lead = Mathf.Max(settings.leadTime, settings.enterTime + settings.chargeTime);
+        enterTime = data.enterTime > 0f ? data.enterTime : settings.enterTime;
+        float lead = Mathf.Max(settings.leadTime, enterTime + settings.chargeTime);
         enterStart = fireTime - lead;
         chargeStart = fireTime - settings.chargeTime;
         blinkStart = fireTime + settings.stayTime;
@@ -133,6 +138,8 @@ public class CannonObstacle : LevelObstacle
 
         AppearTime = enterStart;
         EndTime = Mathf.Max(exitStart + settings.exitTime, ballEndTime);
+        LauncherSide = side;
+        LauncherEndTime = exitStart + settings.exitTime;
     }
 
     protected override void OnSpawn()
@@ -165,7 +172,7 @@ public class CannonObstacle : LevelObstacle
     void UpdateLauncher(float t)
     {
         // 들어오기 (작고 투명하게 시작해 제자리에서 원래 크기가 된다)
-        float enter = EaseOutCubic((t - enterStart) / settings.enterTime);
+        float enter = EnterCurve((t - enterStart) / enterTime, settings.enterCurve);
         Vector2 position = Vector2.Lerp(offscreenPosition, restPosition, enter);
         float scale = Mathf.Lerp(0.6f, 1f, enter);
         float alpha = enter;

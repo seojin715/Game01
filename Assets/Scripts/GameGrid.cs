@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -61,7 +62,9 @@ public struct WallEvent
     public float time;       // 벽이 도착하는 노래 시간
     public GridSide side;
     public int size;
+    public bool relative;    // 켜면 size를 칸 수가 아니라 지금보다 늘어나는(-면 줄어드는) 칸 수로 본다.
     public float warnTime;   // 0이면 기본값
+    public float moveTime;   // 벽이 움직이는 데 걸리는 시간. 0이면 기본값
 }
 
 /// <summary>줄어들 칸의 경고 띠. GridView가 그린다.</summary>
@@ -116,8 +119,8 @@ public class GameGrid : MonoBehaviour
     [Tooltip("벽이 움직여서 될 수 있는 최대 세로 칸 수")]
     [Min(1)] public int maxRows = 7;
 
-    [Tooltip("벽이 움직이는 데 걸리는 시간 (노래 시간, 초). 벽은 레벨의 time에 도착한다.")]
-    [Min(0.05f)] public float wallMoveTime = 0.5f;
+    [Tooltip("레벨에 moveTime이 없을 때, 벽이 움직이는 데 걸리는 시간 (노래 시간, 초). 벽은 레벨의 time에 도착한다. 0이면 time에 바로 옮겨진다.")]
+    [Min(0f)] public float wallMoveTime = 0.5f;
 
     [Tooltip("레벨에 warnTime이 없을 때, 벽이 움직이기 전에 줄어들 칸을 경고하는 시간 (초)")]
     [Min(0f)] public float defaultWallWarnTime = 1f;
@@ -272,8 +275,8 @@ public class GameGrid : MonoBehaviour
     {
         foreach (var list in segments) list.Clear();
 
-        var sorted = new List<WallEvent>(events);
-        sorted.Sort((a, b) => a.time.CompareTo(b.time));
+        // 같은 시간이면 들어온 순서를 지킨다. (한 번에 움직이는 벽은 줄어드는 벽이 먼저다)
+        var sorted = events.OrderBy(e => e.time).ToList();
 
         var settled = BaseBounds;   // 지금까지의 이벤트가 끝난 뒤의 범위
         var max = BaseBounds;
@@ -282,9 +285,12 @@ public class GameGrid : MonoBehaviour
         {
             bool horizontal = GridSideUtil.IsHorizontal(e.side);   // 왼쪽·오른쪽 벽이면 가로 칸 수가 바뀐다.
             int limit = horizontal ? maxColumns : maxRows;
-            if (e.size < 1 || e.size > limit)
+            int size = e.size;
+            if (e.relative) size += Mathf.RoundToInt(horizontal ? settled.Width : settled.Height);
+
+            if (size < 1 || size > limit)
             {
-                problems?.Add($"벽 time={e.time:0.###} side={e.side}: size는 1부터 {limit}까지입니다.");
+                problems?.Add($"벽 time={e.time:0.###} side={e.side}: 움직인 뒤 칸 수는 1부터 {limit}까지입니다. (지금 {size})");
                 continue;
             }
 
@@ -293,18 +299,19 @@ public class GameGrid : MonoBehaviour
             float to;
             switch (e.side)
             {
-                case GridSide.Right: to = settled.minX + e.size; settled.maxX = to; break;
-                case GridSide.Left: to = settled.maxX - e.size; settled.minX = to; break;
-                case GridSide.Top: to = settled.minY + e.size; settled.maxY = to; break;
-                default: to = settled.maxY - e.size; settled.minY = to; break;
+                case GridSide.Right: to = settled.minX + size; settled.maxX = to; break;
+                case GridSide.Left: to = settled.maxX - size; settled.minX = to; break;
+                case GridSide.Top: to = settled.minY + size; settled.maxY = to; break;
+                default: to = settled.maxY - size; settled.minY = to; break;
             }
 
             float warn = e.warnTime > 0f ? e.warnTime : defaultWallWarnTime;
+            float move = e.moveTime > 0f ? e.moveTime : wallMoveTime;
             segments[(int)e.side].Add(new WallSegment
             {
-                moveStart = e.time - wallMoveTime,
+                moveStart = e.time - move,
                 moveEnd = e.time,
-                warnStart = e.time - wallMoveTime - warn,
+                warnStart = e.time - move - warn,
                 from = from,
                 to = to
             });

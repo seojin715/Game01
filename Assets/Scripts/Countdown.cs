@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -8,7 +9,7 @@ using UnityEngine;
 ///
 /// 숫자가 바뀔 때는 크기를 바꾸지 않고 칸마다 서서히 나타나고 사라진다.
 /// 다음 숫자에도 있는 칸은 그대로 두고, 필요 없어진 칸만 사라지고(fade out) 새로 필요한 칸만 나타난다(fade in).
-/// 처음 숫자는 모든 칸이 나타난다. 마지막 숫자 뒤에는 빈 칸까지 모두 나타나면서 빛이 원래 격자 밝기로 내려가
+/// 처음 숫자는 모든 칸이 나타난다. 마지막 숫자 뒤에는 숫자에 가까운 빈 칸부터 하나씩 빠르게 켜지면서 빛이 원래 격자 밝기로 내려가
 /// 원래 격자와 똑같은 모습이 되고, 그 순간 진짜 격자(GridView)로 넘겨준 뒤 준비 시간이 시작된다. (끊기지 않게)
 ///
 /// 하트는 움직이지 못하고, 장애물도 나오지 않는다. (PlayerMover, GridView, LevelPlayer가 IsActive를 본다)
@@ -34,8 +35,14 @@ public class Countdown : MonoBehaviour
     [Tooltip("숫자 하나를 보여 주는 시간 (다음 숫자로 바뀌기 시작할 때까지)")]
     [Min(0.1f)] public float stepTime = 1f;
 
-    [Tooltip("칸이 서서히 나타나거나 사라지는 시간. 마지막 숫자 뒤에 원래 격자로 바뀌는 시간도 이것이다.")]
+    [Tooltip("숫자가 바뀔 때 칸이 서서히 나타나거나 사라지는 시간")]
     [Min(0.01f)] public float fadeTime = 0.25f;
+
+    [Tooltip("마지막 숫자 뒤에 빈 칸이 하나씩 켜지는 간격. 작을수록 빨리 퍼진다. 숫자에 가까운 칸부터 켜진다.")]
+    [Min(0f)] public float fillInterval = 0.03f;
+
+    [Tooltip("마지막 숫자 뒤에 빈 칸 하나가 나타나는 데 걸리는 시간. 클수록 부드럽게 켜진다.")]
+    [Min(0.01f)] public float fillFadeTime = 0.35f;
 
     [Tooltip("한 프레임에 흐르는 시간의 최대값. 컴퓨터가 잠깐 멈칫해도 연출이 건너뛰지 않고 이어지게 한다.")]
     [Range(0.01f, 0.1f)] public float maxFrameStep = 1f / 30f;
@@ -77,6 +84,8 @@ public class Countdown : MonoBehaviour
     float[,] alphas;               // 이번 프레임 칸마다 보이는 정도 (0~1)
     Material glowMaterial;
     bool[,] fullGrid;              // 모든 칸이 켜진 모양 (마지막에 원래 격자로 돌아갈 때)
+    int[,] fillOrder;              // 마지막 숫자 뒤에 칸이 켜지는 순서 (마지막 숫자에 있던 칸은 -1)
+    float fillDuration;            // 빈 칸이 모두 켜지기까지 걸리는 시간
     float glow = 1f;               // 지금 밝기
     float elapsed;
     bool counting;
@@ -110,6 +119,7 @@ public class Countdown : MonoBehaviour
         for (int x = 0; x < columns; x++) for (int y = 0; y < rows; y++) fullGrid[x, y] = true;
         alphas = new float[columns, rows];
         glow = glowIntensity;
+        BuildFillOrder(shapes[shapes.Length - 1], columns, rows);
 
         BuildLines(columns, rows);
         SetAlphas();
@@ -141,9 +151,9 @@ public class Countdown : MonoBehaviour
         if (t < 0f) return;
 
         // step번째 숫자로 바뀌는 중이거나 바뀐 뒤다. (digits.Length번째는 "격자 전체" = 원래 격자로 돌아감)
-        int step = Mathf.FloorToInt(t / stepTime);
+        int step = Mathf.Min(Mathf.FloorToInt(t / stepTime), digits.Length);
         float local = t - step * stepTime;
-        if (step >= digits.Length && local >= fadeTime)
+        if (step >= digits.Length && local >= fillDuration)
         {
             Finish(true);
             return;
@@ -160,12 +170,23 @@ public class Countdown : MonoBehaviour
         if (!toGrid && local < ghostTime) ghost = ghostAlpha * Mathf.Sin(local / ghostTime * Mathf.PI);
 
         // 원래 격자로 돌아가는 동안 빛을 원래 격자 밝기(1)로 내려서, 넘겨줄 때 밝기가 튀지 않게 한다.
-        glow = toGrid ? Mathf.Lerp(glowIntensity, 1f, p) : glowIntensity;
+        glow = toGrid ? Mathf.Lerp(glowIntensity, 1f, Mathf.SmoothStep(0f, 1f, local / fillDuration)) : glowIntensity;
 
         for (int x = 0; x < alphas.GetLength(0); x++)
         {
             for (int y = 0; y < alphas.GetLength(1); y++)
             {
+                // 원래 격자로 돌아갈 때: 숫자 칸은 그대로 두고, 빈 칸은 순서대로 하나씩 켜진다.
+                if (toGrid)
+                {
+                    int order = fillOrder[x, y];
+                    float fill = Mathf.SmoothStep(0f, 1f, (local - order * fillInterval) / fillFadeTime);
+
+                    // 빛나는 선은 조금만 켜져도 밝아 보여서, 처음을 더 천천히 올려야 부드럽게 보인다.
+                    alphas[x, y] = order < 0 ? 1f : fill * fill;
+                    continue;
+                }
+
                 bool was = previous != null && previous[x, y];
                 bool now = current != null && current[x, y];
                 float alpha = was && now ? 1f : now ? p : was ? 1f - p : 0f;
@@ -176,6 +197,52 @@ public class Countdown : MonoBehaviour
         }
 
         SetAlphas();
+    }
+
+    /// <summary>마지막 숫자의 빈 칸을 숫자에 가까운 순서로 줄 세운다. 거리가 같으면 숫자 중심을 도는 순서로 켠다.</summary>
+    void BuildFillOrder(bool[,] last, int columns, int rows)
+    {
+        var lit = new List<Vector2Int>();
+        var empty = new List<Vector2Int>();
+        for (int x = 0; x < columns; x++)
+        {
+            for (int y = 0; y < rows; y++)
+            {
+                if (last[x, y]) lit.Add(new Vector2Int(x, y));
+                else empty.Add(new Vector2Int(x, y));
+            }
+        }
+
+        // 숫자 칸이 하나도 없으면 격자 가운데에서 퍼진다.
+        Vector2 center = new Vector2((columns - 1) * 0.5f, (rows - 1) * 0.5f);
+        if (lit.Count > 0)
+        {
+            center = Vector2.zero;
+            foreach (var cell in lit) center += (Vector2)cell;
+            center /= lit.Count;
+        }
+
+        float NearestDistance(Vector2Int cell)
+        {
+            if (lit.Count == 0) return (cell - center).sqrMagnitude;
+            float best = float.MaxValue;
+            foreach (var other in lit) best = Mathf.Min(best, (cell - other).sqrMagnitude);
+            return best;
+        }
+
+        float AngleOf(Vector2Int cell) => Mathf.Atan2(cell.y - center.y, cell.x - center.x);
+
+        empty.Sort((a, b) =>
+        {
+            int byDistance = NearestDistance(a).CompareTo(NearestDistance(b));
+            return byDistance != 0 ? byDistance : AngleOf(a).CompareTo(AngleOf(b));
+        });
+
+        fillOrder = new int[columns, rows];
+        foreach (var cell in lit) fillOrder[cell.x, cell.y] = -1;
+        for (int i = 0; i < empty.Count; i++) fillOrder[empty[i].x, empty[i].y] = i;
+
+        fillDuration = Mathf.Max(0, empty.Count - 1) * fillInterval + fillFadeTime;
     }
 
     /// <summary>칸마다 보이는 정도에 맞춰 선 조각을 칠한다. 선은 맞닿은 칸 중 가장 잘 보이는 칸을 따른다.</summary>

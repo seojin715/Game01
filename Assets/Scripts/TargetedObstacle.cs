@@ -16,6 +16,8 @@ public class TargetedObstacle : LevelObstacle
     readonly Func<ObstacleData, LevelObstacle> create;  // 정한 자리로 진짜 장애물 만들기
     LevelObstacle inner;
 
+    public override LevelObstacle Resolved => inner ?? this;
+
     public TargetedObstacle(ObstacleData data, ObstacleContext context, float appearTime,
         Func<ObstacleData, ObstacleData> place, Func<ObstacleData, LevelObstacle> create)
         : base(data, context)

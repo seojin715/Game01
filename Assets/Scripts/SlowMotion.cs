@@ -61,7 +61,12 @@ public class SlowMotion : MonoBehaviour
             if (keyboard != null && keyboard[testKey].wasPressedThisFrame) Trigger();
         }
 
-        if (!IsActive) return;
+        if (!IsActive)
+        {
+            // 레벨 에디터 미리보기에서 고른 속도를 바로 반영한다. (평소 게임은 건드리지 않는다)
+            if (LevelPreview.Active) ApplySpeed(1f);
+            return;
+        }
 
         elapsed += Time.unscaledDeltaTime;
         float t = elapsed / duration;
@@ -77,10 +82,15 @@ public class SlowMotion : MonoBehaviour
         ApplySpeed(Mathf.Lerp(1f, slowestSpeed, amount));
     }
 
-    /// <summary>게임 시간과 노래 속도를 같은 값으로 맞춘다.</summary>
+    /// <summary>게임 시간과 노래 속도를 같은 값으로 맞춘다. 미리보기 속도를 곱해서 슬로우와 함께 쓸 수 있다.</summary>
     void ApplySpeed(float speed)
     {
         CurrentSpeed = speed;
+        SetGameSpeed(speed * LevelPreview.Speed);
+    }
+
+    void SetGameSpeed(float speed)
+    {
         Time.timeScale = speed;
         if (clock != null) clock.SetSpeed(speed);
     }
@@ -89,6 +99,7 @@ public class SlowMotion : MonoBehaviour
     {
         // 꺼지거나 플레이를 멈출 때 느린 상태로 남지 않게 되돌린다.
         IsActive = false;
-        ApplySpeed(1f);
+        CurrentSpeed = 1f;
+        SetGameSpeed(1f);
     }
 }

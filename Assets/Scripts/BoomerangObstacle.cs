@@ -9,7 +9,7 @@ public class BoomerangSettings
     [Tooltip("발사 순간 속도 기본값 (칸/초). 레벨 데이터에 speed가 있으면 그 값을 쓴다. 되돌아올 때도 이 속도로 발사기에 들어온다.")]
     [Min(0.5f)] public float speed = 9f;
 
-    [Tooltip("range가 없거나 0일 때 쓰는 값. 격자 안으로 몇 번째 칸 가운데까지 갔다가 돌아오는지")]
+    [Tooltip("사거리 기본값. 레벨 데이터에 range가 없거나 0일 때 쓴다. 격자 안으로 몇 번째 칸 가운데까지 갔다가 돌아오는지이고, 격자보다 길면 끝 칸까지만 간다.")]
     [Min(0.5f)] public float defaultRange = 3f;
 
     [Tooltip("빙글빙글 도는 빠르기 (도/초)")]
@@ -60,6 +60,9 @@ public class BoomerangSettings
 
     [Tooltip("발사기가 화면 밖에서 제자리까지 오는 데 걸리는 시간")]
     [Min(0.01f)] public float enterTime = 0.35f;
+
+    [Tooltip("날아오는 곡선. 1이면 일정한 속도로 서서히 오고, 클수록 처음에 빠르게 와서 자리 근처에서 오래 머문다.")]
+    [Range(1f, 4f)] public float enterCurve = 1.5f;
 
     [Tooltip("발사 직전 수축하는 시간")]
     [Min(0f)] public float chargeTime = 0.15f;
@@ -112,6 +115,7 @@ public class BoomerangObstacle : LevelObstacle
     readonly float fireTime;
     readonly float returnTime;          // 발사기로 돌아오는 시간
     readonly float enterStart;
+    readonly float enterTime;           // 발사기가 제자리까지 날아오는 시간 (레벨 값이 없으면 설정값)
     readonly float chargeStart;
     readonly float exitStart;
     readonly float launcherWorldSize;
@@ -135,8 +139,8 @@ public class BoomerangObstacle : LevelObstacle
         launcherRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(inward.y, inward.x) * Mathf.Rad2Deg);
 
         edgePoint = EdgePoint(context.grid, side, data.line, data.time);
-        float toEdge = settings.launcherDistance * cell;                 // 발사기에서 격자 가장자리까지
-        restPosition = edgePoint - inward * toEdge;
+        restPosition = LauncherEdgePoint(context.grid, side, data) - inward * (settings.launcherDistance * cell);
+        float toEdge = Vector2.Distance(restPosition, edgePoint);        // 발사기에서 격자 가장자리까지
         offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -inward), launcherWorldSize);
 
         // 발사기에서 되돌아오는 지점까지의 거리. range번째 칸의 가운데에서 멈춘다.
@@ -153,13 +157,16 @@ public class BoomerangObstacle : LevelObstacle
         fireTime = data.time - timeToEdge;
         returnTime = fireTime + flightTime;
 
-        float lead = Mathf.Max(settings.leadTime, settings.enterTime + settings.chargeTime);
+        enterTime = data.enterTime > 0f ? data.enterTime : settings.enterTime;
+        float lead = Mathf.Max(settings.leadTime, enterTime + settings.chargeTime);
         enterStart = fireTime - lead;
         chargeStart = fireTime - settings.chargeTime;
         exitStart = returnTime + settings.stayTime;
 
         AppearTime = enterStart;
         EndTime = exitStart + settings.exitTime;
+        LauncherSide = side;
+        LauncherEndTime = EndTime;
     }
 
     protected override void OnSpawn()
@@ -217,7 +224,7 @@ public class BoomerangObstacle : LevelObstacle
     /// <summary>발사기: 들어옴 → 수축 → 발사 → 부메랑을 받으며 한 번 더 움찔 → 작아지며 사라짐</summary>
     void UpdateLauncher(float t)
     {
-        float enter = EaseOutCubic((t - enterStart) / settings.enterTime);
+        float enter = EnterCurve((t - enterStart) / enterTime, settings.enterCurve);
         Vector2 position = Vector2.Lerp(offscreenPosition, restPosition, enter);
         float scale = Mathf.Lerp(0.6f, 1f, enter);
         float alpha = enter;
@@ -254,7 +261,7 @@ public class BoomerangObstacle : LevelObstacle
     {
         if (rangeRibbon == null) return;
 
-        float alpha = EaseOutCubic((t - enterStart) / settings.enterTime);
+        float alpha = EaseOutCubic((t - enterStart) / enterTime);
         if (t >= returnTime) alpha *= 1f - Mathf.Clamp01((t - returnTime) / settings.exitTime);
 
         rangeRibbon.color = WithAlpha(Context.Color, settings.ribbonAlpha * alpha);

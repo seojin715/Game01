@@ -18,6 +18,7 @@ using UnityEngine;
 ///
 /// 미리보기: ▶ 미리보기를 누르면 플레이 모드로 들어가 주황 커서 시간부터 실제 게임 화면으로 보여 준다. (LevelPreview)
 /// 저장하지 않은 내용도 그대로 나오고, 미리보기 중에 고치거나 눈금을 누르면 멈추지 않고 바로 반영된다.
+/// 버튼 옆 메뉴로 진행 속도(100~25%)를 고르면 게임과 노래가 함께 느려진다.
 /// 맞아도 목숨은 줄지 않고, 맞은 곳은 타임라인 위에 빨간 표시로 남는다.
 /// 편집한 내용은 창에 직렬화해 두어서 Ctrl+Z로 되돌릴 수 있고, 스크립트가 다시 컴파일돼도 남는다.
 /// </summary>
@@ -26,6 +27,11 @@ public partial class LevelEditorWindow : EditorWindow
     const string LevelsFolder = "Assets/Levels";
     const string AudioFolder = "Assets/Audio";
     static readonly string[] AudioExtensions = { ".mp3", ".wav", ".ogg", ".aif", ".aiff" };
+    const float FreeArrowStep = 0.1f;   // 자유 배치일 때 좌우 화살표로 옮기는 시간 (초)
+
+    // 미리보기 진행 속도
+    static readonly float[] PreviewSpeeds = { 1f, 0.75f, 0.5f, 0.25f };
+    static readonly string[] PreviewSpeedLabels = { "100%", "75%", "50%", "25%" };
 
     /// <summary>장애물을 놓거나 옮길 때 시간을 맞추는 단위</summary>
     /// (저장된 창 설정이 바뀌지 않도록 새 단위는 뒤에 붙였다. 메뉴에 보이는 순서는 SnapOrder)
@@ -45,6 +51,7 @@ public partial class LevelEditorWindow : EditorWindow
     [SerializeField] float pixelsPerSecond = 120f;   // 확대 정도 (1초가 몇 픽셀인지)
     [SerializeField] float scrollTime;               // 타임라인 왼쪽 끝의 시간
     [SerializeField] float cursorTime;               // 붙여넣기와 + 버튼이 쓰는 시간 (주황 세로선)
+    [SerializeField] float previewSpeed = 1f;        // 미리보기 진행 속도 (1이 원래 속도)
     [SerializeField] Vector2 rowsScroll;
     [SerializeField] Vector2 propertiesScroll;
 
@@ -111,7 +118,7 @@ public partial class LevelEditorWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.LabelField(
-            "더블클릭: 추가 · 끌기: 이동 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기 · 미리보기 중 눈금 클릭: 그 시간으로 이동",
+            "더블클릭: 추가 · 끌기: 이동 · 빈 곳에서 끌기: 네모 안 고르기 · Ctrl+클릭: 여러 개 고르기 · Delete: 삭제 · Ctrl+C / Ctrl+V: 복사 / 주황선에 붙여넣기 · 휠: 좌우 이동 · Ctrl+휠: 확대 · Ctrl+Z: 되돌리기 · 좌우 화살표: 배치 단위만큼 이동 · 미리보기 중 눈금 클릭: 그 시간으로 이동",
             EditorStyles.miniLabel);
     }
 
@@ -138,6 +145,17 @@ public partial class LevelEditorWindow : EditorWindow
     /// <summary>도구 막대의 미리보기 버튼들. 멈춰 있으면 ▶, 미리보기 중이면 일시정지와 정지.</summary>
     void DrawPreviewButtons()
     {
+        // 진행 속도: 미리보기 전에 골라 두거나, 미리보기 중에 바꾸면 바로 반영된다.
+        int speedIndex = Mathf.Max(0, Array.IndexOf(PreviewSpeeds, previewSpeed));
+        EditorGUI.BeginChangeCheck();
+        speedIndex = EditorGUILayout.Popup(speedIndex, PreviewSpeedLabels, EditorStyles.toolbarPopup, GUILayout.Width(56f));
+        if (EditorGUI.EndChangeCheck())
+        {
+            previewSpeed = PreviewSpeeds[speedIndex];
+            if (IsPreviewing) LevelPreview.Speed = previewSpeed;
+            GUI.FocusControl(null);   // 바로 좌우 화살표를 쓸 수 있게
+        }
+
         if (IsPreviewing)
         {
             bool paused = EditorApplication.isPaused;
@@ -165,7 +183,7 @@ public partial class LevelEditorWindow : EditorWindow
             return;
         }
 
-        LevelPreview.WriteRequest(cursorTime, BuildJson());
+        LevelPreview.WriteRequest(cursorTime, BuildJson(), previewSpeed);
         sentRevision = editRevision;
         EditorApplication.isPlaying = true;
     }
@@ -183,10 +201,11 @@ public partial class LevelEditorWindow : EditorWindow
     {
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
 
-        if (GUILayout.Button("새로", EditorStyles.toolbarButton, GUILayout.Width(44f))) NewLevel();
-        if (GUILayout.Button("열기…", EditorStyles.toolbarButton, GUILayout.Width(50f))) OpenLevel();
-        if (GUILayout.Button("저장", EditorStyles.toolbarButton, GUILayout.Width(44f))) Save();
-        if (GUILayout.Button("다른 이름으로 저장…", EditorStyles.toolbarButton, GUILayout.Width(120f))) SaveAs();
+        // 파일 창이나 물음 창을 띄우면 창 그리기가 끊기므로, 닫힌 뒤 이번 이벤트의 나머지 그리기는 건너뛴다.
+        if (GUILayout.Button("새로", EditorStyles.toolbarButton, GUILayout.Width(44f))) { NewLevel(); GUIUtility.ExitGUI(); }
+        if (GUILayout.Button("열기…", EditorStyles.toolbarButton, GUILayout.Width(50f))) { OpenLevel(); GUIUtility.ExitGUI(); }
+        if (GUILayout.Button("저장", EditorStyles.toolbarButton, GUILayout.Width(44f))) { Save(); GUIUtility.ExitGUI(); }
+        if (GUILayout.Button("다른 이름으로 저장…", EditorStyles.toolbarButton, GUILayout.Width(120f))) { SaveAs(); GUIUtility.ExitGUI(); }
 
         GUILayout.Space(8f);
         string fileLabel = string.IsNullOrEmpty(levelPath) ? "(아직 저장하지 않은 새 레벨)" : levelPath;
@@ -471,6 +490,13 @@ public partial class LevelEditorWindow : EditorWindow
             GUIUtility.ExitGUI();   // 장애물 수가 바뀌었으니 이번 이벤트의 나머지 그리기는 건너뛴다.
         }
 
+        // 좌우 화살표: 배치 단위만큼 시간을 옮긴다. (누르고 있으면 계속 움직인다)
+        if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.RightArrow))
+        {
+            MoveByStep(e.keyCode == KeyCode.RightArrow ? 1 : -1);
+            e.Use();
+        }
+
         if (e.type != EventType.ValidateCommand && e.type != EventType.ExecuteCommand) return;
         bool execute = e.type == EventType.ExecuteCommand;
 
@@ -511,6 +537,48 @@ public partial class LevelEditorWindow : EditorWindow
         if (execute) GUIUtility.ExitGUI();
     }
 
+    /// <summary>
+    /// 주황 커서를 배치 단위의 다음(1) 또는 이전(-1) 눈금으로 옮긴다. 자유 배치면 FreeArrowStep초씩 옮긴다.
+    /// 미리보기 중에는 지금 재생 위치를 기준으로 옮기고, 동영상을 건너뛰듯 게임도 그 시간으로 간다.
+    /// </summary>
+    void MoveByStep(int direction)
+    {
+        float from = cursorTime;
+        if (IsPreviewing && sceneClock != null) from = LevelPreview.PendingSeek ?? sceneClock.SongTime;
+
+        float target;
+        float step = SnapStep;
+        if (step > 0f)
+        {
+            // 눈금 사이에 있어도 그 방향의 바로 다음 눈금으로 간다. (눈금 위라면 한 칸 옆으로)
+            const float onBeat = 0.001f;
+            float k = (from - level.offset) / step;
+            float next = direction > 0 ? Mathf.Floor(k + onBeat) + 1f : Mathf.Ceil(k - onBeat) - 1f;
+            target = level.offset + next * step;
+        }
+        else
+        {
+            target = from + direction * FreeArrowStep;
+        }
+
+        cursorTime = Snap(Mathf.Min(target, SongLength));
+
+        if (IsPreviewing)
+        {
+            LevelPreview.PendingSeek = cursorTime;
+
+            // 일시정지 중이면 한 프레임만 진행해서 옮긴 시간의 화면을 보여 준다.
+            // 창을 그리는 도중에 진행하면 그리기가 꼬이므로, 다 그린 뒤에 한다.
+            if (EditorApplication.isPaused) EditorApplication.delayCall += EditorApplication.Step;
+        }
+
+        // 커서가 화면 밖으로 나가면 따라간다.
+        float visible = lastTrackWidth / pixelsPerSecond;
+        if (cursorTime < scrollTime || cursorTime > scrollTime + visible * 0.9f) scrollTime = cursorTime - visible * 0.1f;
+
+        Repaint();
+    }
+
     void AddObstacle(string type, float time)
     {
         RecordUndo("장애물 추가");
@@ -534,6 +602,7 @@ public partial class LevelEditorWindow : EditorWindow
 
         ObstacleData created = previous != null ? Clone(previous) : DefaultObstacle(type);
         created.time = ClampTime(time);
+        created.group = 0;   // 묶음은 이어받지 않는다. (직접 묶어야 묶인다)
         return created;
     }
 
@@ -584,14 +653,72 @@ public partial class LevelEditorWindow : EditorWindow
         RecordUndo("장애물 붙여넣기");
         float first = clipboard.Min(o => o.time);
         selection.Clear();
+
+        // 붙여 넣은 묶음은 원래 묶음과 따로 랜덤을 고르도록 새 번호를 준다.
+        var newGroups = new Dictionary<int, int>();
         foreach (var source in clipboard)
         {
             var o = Clone(source);
             o.time = ClampTime(RoundTime(time + (source.time - first)));
+            if (o.group != 0)
+            {
+                if (!newGroups.TryGetValue(o.group, out int newGroup))
+                {
+                    newGroup = NextGroupId() + newGroups.Count;
+                    newGroups[o.group] = newGroup;
+                }
+                o.group = newGroup;
+            }
             obstacles.Add(o);
             selection.Add(obstacles.Count - 1);
         }
         Repaint();
+    }
+
+    /// <summary>아직 쓰지 않은 묶음 번호</summary>
+    int NextGroupId() => obstacles.Count == 0 ? 1 : obstacles.Max(o => o.group) + 1;
+
+    /// <summary>고른 장애물들을 새 묶음으로 묶는다. 같은 묶음은 랜덤으로 고르는 쪽이 같아진다.</summary>
+    void GroupSelection()
+    {
+        RecordUndo("장애물 묶기");
+        int group = NextGroupId();
+        foreach (int i in selection.Where(i => i >= 0 && i < obstacles.Count)) obstacles[i].group = group;
+        ShowNotification(new GUIContent($"묶음 {group}으로 묶었습니다"));
+        Repaint();
+    }
+
+    /// <summary>고른 장애물들을 묶음에서 뺀다.</summary>
+    void UngroupSelection()
+    {
+        RecordUndo("묶음 풀기");
+        foreach (int i in selection.Where(i => i >= 0 && i < obstacles.Count)) obstacles[i].group = 0;
+        Repaint();
+    }
+
+    /// <summary>묶기와 풀기 버튼. 고른 것 중 묶인 것이 있을 때만 풀 수 있다.</summary>
+    void DrawGroupButtons()
+    {
+        var picked = selection.Where(i => i >= 0 && i < obstacles.Count).Select(i => obstacles[i]).ToList();
+        bool anyGrouped = picked.Any(o => o.group != 0);
+
+        EditorGUILayout.BeginHorizontal();
+        using (new EditorGUI.DisabledScope(picked.Count < 2))
+        {
+            var label = new GUIContent("묶기", "묶인 장애물은 랜덤으로 고르는 쪽과 발사기가 랜덤으로 날아오는 쪽이 같아집니다.");
+            if (GUILayout.Button(label)) GroupSelection();
+        }
+        using (new EditorGUI.DisabledScope(!anyGrouped))
+        {
+            if (GUILayout.Button("묶음 풀기")) UngroupSelection();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (anyGrouped)
+        {
+            string groups = string.Join(", ", picked.Where(o => o.group != 0).Select(o => o.group).Distinct());
+            EditorGUILayout.LabelField("묶음 번호", groups);
+        }
     }
 
     void SelectAll()

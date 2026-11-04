@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -8,6 +9,9 @@ public class ObstacleContext
 {
     public GameGrid grid;
     public HeartView heart;
+
+    /// <summary>하트 이동. 하트를 밀어내는 장애물(직사각형 포탄)이 쓴다.</summary>
+    public PlayerMover mover;
 
     /// <summary>레벨에 적힌 장애물 색 (obstacleColor)</summary>
     public Color color;
@@ -33,6 +37,9 @@ public class ObstacleContext
     /// <summary>장애물이 하트에 닿았을 때 부른다.</summary>
     public Action<LevelObstacle> onPlayerHit;
 
+    /// <summary>묶음(group)마다 정해 둔, 발사기가 랜덤으로 날아오는 방향. 같은 묶음은 같은 방향에서 온다.</summary>
+    public readonly Dictionary<int, Vector2> groupEnterDirections = new Dictionary<int, Vector2>();
+
     public float CellSize => grid != null ? grid.cellSize : 1f;
 }
 
@@ -57,6 +64,15 @@ public abstract class LevelObstacle
     public float EndTime { get; protected set; }
 
     public bool IsSpawned { get; private set; }
+
+    /// <summary>발사기가 있는 벽 쪽. 발사기가 없는 장애물은 null이고, 줄은 Data.line이다.</summary>
+    public GridSide? LauncherSide { get; protected set; }
+
+    /// <summary>발사기가 완전히 사라지는 노래 시간. 포탄은 더 날아가도 자리는 이때 빈다.</summary>
+    public float LauncherEndTime { get; protected set; }
+
+    /// <summary>자리를 정한 진짜 장애물. 나타날 때 자리를 정하는 장애물(TargetedObstacle)이 아니면 자기 자신이다.</summary>
+    public virtual LevelObstacle Resolved => this;
 
     protected LevelObstacle(ObstacleData data, ObstacleContext context)
     {
@@ -105,10 +121,30 @@ public abstract class LevelObstacle
     }
 
     /// <summary>
-    /// 발사기가 날아오는(나갈 때도 같은) 화면 밖 방향. 레벨의 enterFrom(left, right, top, bottom)이 있으면 그쪽,
+    /// 발사기 자리의 기준이 되는 벽 위의 점. 평소에는 그 시간의 벽(EdgePoint)이고,
+    /// launcherAtBase면 격자가 줄어도 처음 격자(5x5)의 벽에 둔다. 격자가 처음보다 크면 격자 안에 놓이지 않게 그때의 벽에 둔다.
+    /// </summary>
+    protected static Vector2 LauncherEdgePoint(GameGrid grid, GridSide side, ObstacleData data)
+    {
+        Vector2 point = EdgePoint(grid, side, data.line, data.time);
+        if (!data.launcherAtBase) return point;
+
+        float baseEdge = grid.BaseBounds.Edge(side);
+        switch (side)
+        {
+            case GridSide.Left: point.x = Mathf.Min(point.x, grid.EdgeToWorldX(baseEdge)); break;
+            case GridSide.Right: point.x = Mathf.Max(point.x, grid.EdgeToWorldX(baseEdge)); break;
+            case GridSide.Bottom: point.y = Mathf.Min(point.y, grid.EdgeToWorldY(baseEdge)); break;
+            default: point.y = Mathf.Max(point.y, grid.EdgeToWorldY(baseEdge)); break;
+        }
+        return point;
+    }
+
+    /// <summary>
+    /// 발사기가 날아오는(나갈 때도 같은) 화면 밖 방향. 레벨의 enterFrom(left, right, top, bottom)이 있으면 그쪽, random이면 네 쪽 중 무작위,
     /// 없으면 fallback(발사기 뒤쪽, 격자 바깥 방향)이다.
     /// </summary>
-    protected static Vector2 EnterDirection(ObstacleData data, Vector2 fallback)
+    protected Vector2 EnterDirection(ObstacleData data, Vector2 fallback)
     {
         switch (data.enterFrom == null ? "" : data.enterFrom.Trim().ToLowerInvariant())
         {
@@ -116,8 +152,20 @@ public abstract class LevelObstacle
             case "right": return Vector2.right;
             case "top": return Vector2.up;
             case "bottom": return Vector2.down;
+            case "random": return RandomEnterDirection(data.group);
             default: return fallback;
         }
+    }
+
+    /// <summary>네 쪽 중 무작위 방향. 묶음(group)이 있으면 처음 고른 방향을 묶음 전체가 함께 쓴다.</summary>
+    Vector2 RandomEnterDirection(int group)
+    {
+        if (group != 0 && Context.groupEnterDirections.TryGetValue(group, out var shared)) return shared;
+
+        Vector2[] directions = { Vector2.left, Vector2.right, Vector2.up, Vector2.down };
+        Vector2 picked = directions[UnityEngine.Random.Range(0, directions.Length)];
+        if (group != 0) Context.groupEnterDirections[group] = picked;
+        return picked;
     }
 
     /// <summary>start에서 dir(상하좌우) 쪽으로 가다가 화면 밖으로 size만큼 더 나간 점</summary>
@@ -148,4 +196,7 @@ public abstract class LevelObstacle
     // 움직임을 부드럽게 하는 곡선들 (입력과 출력 모두 0~1)
     protected static float EaseOutCubic(float x) { x = 1f - Mathf.Clamp01(x); return 1f - x * x * x; }
     protected static float EaseInOut(float x) => Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(x));
+
+    /// <summary>발사기가 날아오는 곡선. power가 1이면 일정한 속도, 클수록 처음에 빠르게 와서 끝에 천천히 멈춘다.</summary>
+    protected static float EnterCurve(float x, float power) => 1f - Mathf.Pow(1f - Mathf.Clamp01(x), power);
 }

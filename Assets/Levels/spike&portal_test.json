@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "title": "새 레벨",
+  "audioFile": "",
+  "bpm": 120.0,
+  "offset": 0.0,
+  "obstacleColor": "#ffffff",
+  "obstacles": [
+    { "type": "portal", "time": 0.0, "enabled": true },
+    { "type": "spike", "time": 0.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 0.5, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 1.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 1.5, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 2.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 5.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 8.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 11.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 14.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 17.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 20.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 23.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 26.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 26.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 29.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 32.0, "side": "any", "line": 2, "target": "random" },
+    { "type": "spike", "time": 35.0, "side": "any", "line": 2, "target": "random" }
+  ]
+}

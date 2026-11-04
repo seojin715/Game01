@@ -61,6 +61,9 @@ public class HomingSettings
     [Tooltip("발사기가 화면 밖에서 제자리까지 오는 데 걸리는 시간")]
     [Min(0.01f)] public float enterTime = 0.35f;
 
+    [Tooltip("날아오는 곡선. 1이면 일정한 속도로 서서히 오고, 클수록 처음에 빠르게 와서 자리 근처에서 오래 머문다.")]
+    [Range(1f, 4f)] public float enterCurve = 1.5f;
+
     [Tooltip("발사 순간 발사기가 앞으로 튀어나가는 거리 (칸 대비)")]
     [Min(0f)] public float kickDistance = 0.25f;
 
@@ -109,6 +112,7 @@ public class HomingObstacle : LevelObstacle
     readonly Vector2 offscreenPosition;
     readonly float fireTime;          // = time
     readonly float enterStart;
+    readonly float enterTime;         // 발사기가 제자리까지 날아오는 시간 (레벨 값이 없으면 설정값)
     readonly float exitStart;
     readonly float startSpeedWorld;
     readonly float launcherWorldSize;
@@ -142,8 +146,7 @@ public class HomingObstacle : LevelObstacle
         launcherWorldSize = settings.launcherSize * cell;
         missileWorldSize = settings.missileSize * cell;
 
-        Vector2 edgePoint = EdgePoint(context.grid, side, data.line, data.time);
-        restPosition = edgePoint - inward * (settings.launcherDistance * cell);
+        restPosition = LauncherEdgePoint(context.grid, side, data) - inward * (settings.launcherDistance * cell);
         offscreenPosition = OutsideView(context.view, restPosition, EnterDirection(data, -inward), launcherWorldSize);
 
         float startSpeedCells = data.speed > 0f ? data.speed : settings.startSpeed;
@@ -151,11 +154,14 @@ public class HomingObstacle : LevelObstacle
 
         // 유도탄은 time에 발사된다. (하트에 닿는 시점은 플레이어 움직임에 따라 달라지므로)
         fireTime = data.time;
-        enterStart = fireTime - Mathf.Max(settings.leadTime, settings.enterTime);
+        enterTime = data.enterTime > 0f ? data.enterTime : settings.enterTime;
+        enterStart = fireTime - Mathf.Max(settings.leadTime, enterTime);
         exitStart = fireTime + settings.stayTime;
 
         AppearTime = enterStart;
         EndTime = float.MaxValue;   // 언제 터질지 모르므로, 터지면 그때 정한다.
+        LauncherSide = side;
+        LauncherEndTime = exitStart + settings.exitTime;
     }
 
     protected override void OnSpawn()
@@ -201,7 +207,7 @@ public class HomingObstacle : LevelObstacle
     /// <summary>발사기: 화면 밖에서 들어옴 → 발사 순간 앞으로 튀어나갔다 돌아옴 → 작아지며 사라짐</summary>
     void UpdateLauncher(float t)
     {
-        float enter = EaseOutCubic((t - enterStart) / settings.enterTime);
+        float enter = EnterCurve((t - enterStart) / enterTime, settings.enterCurve);
         Vector2 pos = Vector2.Lerp(offscreenPosition, restPosition, enter);
         float scale = Mathf.Lerp(0.6f, 1f, enter);
         float alpha = enter;
@@ -239,6 +245,13 @@ public class HomingObstacle : LevelObstacle
             position = restPosition;
             direction = inward;
             age = 0f;
+
+            // 유도를 끈 유도탄은 쏘는 순간 하트 쪽을 겨냥하고, 그 뒤로는 곧게 날아간다.
+            if (Data.straight && Context.heart != null)
+            {
+                Vector2 toHeart = (Vector2)Context.heart.transform.position - position;
+                if (toHeart.sqrMagnitude > 0.0001f) direction = toHeart.normalized;
+            }
         }
 
         while (!exploded && simulatedTime < t)
@@ -257,8 +270,8 @@ public class HomingObstacle : LevelObstacle
         float speed = Mathf.Min(settings.maxSpeed * cell, startSpeedWorld + settings.acceleration * cell * age);
         float turnRate = Mathf.Max(settings.minTurnRate, settings.startTurnRate - settings.turnRateDecay * age);
 
-        // 하트 쪽으로 꺾되, 이번 조각에서 꺾을 수 있는 각도까지만 꺾는다.
-        if (Context.heart != null)
+        // 하트 쪽으로 꺾되, 이번 조각에서 꺾을 수 있는 각도까지만 꺾는다. (유도를 껐으면 꺾지 않는다)
+        if (Context.heart != null && !Data.straight)
         {
             Vector2 toHeart = (Vector2)Context.heart.transform.position - position;
             if (toHeart.sqrMagnitude > 0.0001f)
@@ -310,10 +323,13 @@ public class HomingObstacle : LevelObstacle
         EndTime = Mathf.Max(time + settings.explosionTime, exitStart + settings.exitTime);
     }
 
-    /// <summary>터진 뒤 Offset(0보다 작으면 바로)이 지나면 소리를 한 번 낸다.</summary>
+    /// <summary>터진 프레임에 바로 소리를 낸다. Offset이 0보다 크면 그만큼 뒤에 낸다.</summary>
     void PlayExplodeSound(float t)
     {
-        if (!explodeSoundPending || t < explodeTime + Mathf.Max(0f, settings.explodeSound.offset)) return;
+        if (!explodeSoundPending) return;
+
+        float delay = settings.explodeSound.offset;
+        if (delay > 0f && t < explodeTime + delay) return;
 
         explodeSoundPending = false;
         SoundEffects.Play(settings.explodeSound.clip, settings.explodeSound.volume);

@@ -21,6 +21,13 @@ public class PlayerHealth : MonoBehaviour
     [Tooltip("켜면 무적 동안 화면의 검정과 흰색이 반전된다.")]
     public bool invertScreenWhileInvincible = true;
 
+    [Header("피격 소리")]
+    [Tooltip("데미지를 입는 순간 나는 소리 (Assets/Audio/SFX). 비워 두면 소리가 나지 않는다. 무적 중에 닿을 때는 나지 않는다.")]
+    public AudioClip hitSound;
+
+    [Tooltip("피격 소리 크기 (0~4). 1이 파일의 원래 크기이고, 1보다 크면 더 커진다. 너무 크면 소리가 찌그러질 수 있다.")]
+    [Range(0f, SoundEffects.MaxVolume)] public float hitVolume = 0.4f;
+
     [Header("기록")]
     [Tooltip("켜면 맞을 때마다 콘솔에 기록한다. 에디터에서 콘솔 기록은 느려서 맞는 순간 잠깐 멈칫할 수 있으니 확인할 때만 켠다.")]
     public bool logHits = false;
@@ -110,6 +117,8 @@ public class PlayerHealth : MonoBehaviour
         Lives--;
         if (display != null) display.SetLives(Lives);
 
+        PlayHitSound();
+
         // 게임과 노래가 함께 잠깐 느려졌다 돌아온다.
         if (slowMotion != null) slowMotion.Trigger();
 
@@ -131,6 +140,9 @@ public class PlayerHealth : MonoBehaviour
 
         return true;
     }
+
+    /// <summary>피격 소리를 낸다. 슬로우가 걸리기 전에 불러서 처음에는 원래 빠르기로 난다.</summary>
+    public void PlayHitSound() => SoundEffects.Play(hitSound, hitVolume);
 
     /// <summary>무적 상태에 맞춰 화면 반전과 블러를 정한다.</summary>
     void ApplyScreenEffects()

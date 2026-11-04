@@ -37,6 +37,7 @@ public partial class LevelEditorWindow
         public SpikeSettings spike;
         public BoomerangSettings boomerang;
         public BurstSettings burst;
+        public BlockSettings block;
         public float wallWarnTime, wallMoveTime;
         public int columns, rows, maxColumns, maxRows;
         public float leadIn;   // 노래 시작 전 준비 시간 (SongClock)
@@ -54,8 +55,8 @@ public partial class LevelEditorWindow
     static readonly string[] TargetSideNames = { "아무 쪽 (행·열 아무거나)", "행: 왼쪽·오른쪽 중", "열: 위·아래 중", "행: 왼쪽에서", "행: 오른쪽에서", "열: 위에서", "열: 아래에서" };
 
     // 발사기가 날아오는 쪽 (enterFrom)
-    static readonly string[] EnterKeys = { "", "left", "right", "top", "bottom" };
-    static readonly string[] EnterNames = { "발사기 뒤쪽 (기본)", "왼쪽에서", "오른쪽에서", "위에서", "아래에서" };
+    static readonly string[] EnterKeys = { "", "left", "right", "top", "bottom", "random" };
+    static readonly string[] EnterNames = { "발사기 뒤쪽 (기본)", "왼쪽에서", "오른쪽에서", "위에서", "아래에서", "랜덤 (네 쪽 중)" };
 
     Defaults defaults;
     readonly List<ObstacleData> walls = new List<ObstacleData>();   // 벽 이동 이벤트 (시간 순)
@@ -89,6 +90,7 @@ public partial class LevelEditorWindow
             spike = player != null ? player.spike : new SpikeSettings(),
             boomerang = player != null ? player.boomerang : new BoomerangSettings(),
             burst = player != null ? player.burst : new BurstSettings(),
+            block = player != null ? player.block : new BlockSettings(),
             wallWarnTime = grid != null ? grid.defaultWallWarnTime : 1f,
             wallMoveTime = grid != null ? grid.wallMoveTime : 0.5f,
             columns = grid != null ? grid.columns : 5,
@@ -118,26 +120,59 @@ public partial class LevelEditorWindow
         foreach (var w in walls)
         {
             if (w.time > time + 0.0001f) break;
-            if (!GridSideUtil.TryParse(w.side, out var side)) continue;
 
-            int limit = GridSideUtil.IsHorizontal(side) ? defaults.maxColumns : defaults.maxRows;
-            if (w.size < 1 || w.size > limit) continue;
-
-            switch (side)
+            if (w.IsMultiWall)
             {
-                case GridSide.Right: b.maxX = b.minX + w.size; break;
-                case GridSide.Left: b.minX = b.maxX - w.size; break;
-                case GridSide.Top: b.maxY = b.minY + w.size; break;
-                default: b.minY = b.maxY - w.size; break;
+                foreach (var (moveSide, move) in w.WallMoves())
+                {
+                    int current = GridSideUtil.IsHorizontal(moveSide) ? b.Columns : b.RowCount;
+                    MoveWall(ref b, moveSide, current + move);
+                }
+                continue;
             }
+
+            if (GridSideUtil.TryParse(w.side, out var side)) MoveWall(ref b, side, w.size);
         }
         return b;
+    }
+
+    /// <summary>side 벽을 움직여 그 방향 칸 수를 size로 만든다. 범위를 벗어나면 움직이지 않는다.</summary>
+    void MoveWall(ref GridRect b, GridSide side, int size)
+    {
+        int limit = GridSideUtil.IsHorizontal(side) ? defaults.maxColumns : defaults.maxRows;
+        if (size < 1 || size > limit) return;
+
+        switch (side)
+        {
+            case GridSide.Right: b.maxX = b.minX + size; break;
+            case GridSide.Left: b.minX = b.maxX - size; break;
+            case GridSide.Top: b.maxY = b.minY + size; break;
+            default: b.minY = b.maxY - size; break;
+        }
+    }
+
+    /// <summary>쪽 설정(left, row, any 등)으로 고를 수 있는 벽 중 하나에라도 정해 둔 줄이 있는지</summary>
+    static bool HasFixedLine(ObstacleData o, GridRect b)
+    {
+        switch (o.side)
+        {
+            case "left": case "right": case "row": return b.HasRow(o.line);
+            case "top": case "bottom": case "col": return b.HasColumn(o.line);
+            default: return b.HasRow(o.line) || b.HasColumn(o.line);
+        }
     }
 
     /// <summary>그 시간의 격자에 장애물이 가리키는 줄이나 칸이 있는지. 없으면 게임에서 나오지 않는다.</summary>
     bool IsPlacementValid(ObstacleData o)
     {
         var b = BoundsAt(o.time);
+
+        // 쪽은 랜덤이고 줄을 정해 둔 장애물은, 고를 수 있는 쪽 중 하나에라도 그 줄이 있어야 나온다.
+        if (o.target == "random" && o.fixLine && o.type != "floor" && o.type != "burst")
+        {
+            return HasFixedLine(o, b);
+        }
+
         switch (o.type)
         {
             case "portal":
@@ -158,6 +193,7 @@ public partial class LevelEditorWindow
 
             case "wall":
             {
+                if (o.IsMultiWall) return o.WallMoves().Count > 0;
                 if (!GridSideUtil.TryParse(o.side, out var side)) return false;
                 int limit = GridSideUtil.IsHorizontal(side) ? defaults.maxColumns : defaults.maxRows;
                 return o.size >= 1 && o.size <= limit;
@@ -213,6 +249,7 @@ public partial class LevelEditorWindow
         EditorGUILayout.LabelField($"{selection.Count}개 고름", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox("끌면 함께 옮겨집니다. Ctrl+C로 복사하고, 주황 커서를 옮긴 뒤 Ctrl+V로 같은 간격 그대로 붙여 넣을 수 있습니다.", MessageType.Info);
         DrawRepeatSection();
+        DrawGroupButtons();
 
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("복사")) CopySelection();
@@ -242,6 +279,7 @@ public partial class LevelEditorWindow
         }
 
         DrawTimeField(o);
+        if (o.group != 0) DrawGroupButtons();
         GUILayout.Space(6f);
 
         switch (o.type)
@@ -254,12 +292,28 @@ public partial class LevelEditorWindow
             case "homing":
                 DrawPlacement(o, PickMode.SideLine);
                 EditOptional("처음 속도 (칸/초)", o.speed, defaults.homing.startSpeed, v => o.speed = v);
+
+                // 유도를 끄면 쏘는 순간만 하트 쪽을 겨냥하고 곧게 날아간다.
+                EditorGUI.BeginChangeCheck();
+                bool homingOn = EditorGUILayout.Toggle(new GUIContent("유도", "끄면 쏘는 순간 하트가 있는 쪽으로 겨냥하고, 그 뒤로는 따라가지 않고 곧게 날아갑니다."), !o.straight);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    RecordUndo("유도 켜기/끄기");
+                    o.straight = !homingOn;
+                }
+                break;
+
+            case "block":
+                DrawPlacement(o, PickMode.SideLine);
+                EditOptional("속도 (칸/초)", o.speed, defaults.block.speed, v => o.speed = v);
+                EditOptional("길이 (칸)", o.length, defaults.block.length, v => o.length = v);
+                EditOptional("두께 (칸)", o.thickness, defaults.block.thickness, v => o.thickness = v);
                 break;
 
             case "boomerang":
                 DrawPlacement(o, PickMode.SideLine);
                 EditOptional("발사 속도 (칸/초)", o.speed, defaults.boomerang.speed, v => o.speed = v);
-                EditOptional("되돌아오는 칸", o.range, defaults.boomerang.defaultRange, v => o.range = v);
+                EditOptional("사거리 (칸)", o.range, defaults.boomerang.defaultRange, v => o.range = v);
                 break;
 
             case "spike":
@@ -272,6 +326,7 @@ public partial class LevelEditorWindow
                 DrawPlacement(o, PickMode.Laser);
                 EditOptional("경고 시간 (초)", o.warnTime, defaults.laser.defaultWarnTime, v => o.warnTime = v);
                 EditOptional("유지 시간 (초)", o.holdTime, defaults.laser.defaultHoldTime, v => o.holdTime = v);
+                EditOptional("차지 시간 (초)", o.chargeTime, defaults.laser.openTime, v => o.chargeTime = v);
                 break;
 
             case "floor":
@@ -429,11 +484,28 @@ public partial class LevelEditorWindow
                     RecordUndo("쪽 바꾸기");
                     o.side = TargetSideKeys[newSide];
                 }
+
+                // 쪽만 랜덤으로 두고 줄은 정해 둘 수 있다.
+                if (o.target == "random") DrawFixedLine(o);
+            }
+
+            // 랜덤 자리의 발사기는 기본으로 다른 발사기와 겹치지 않는다. 켜면 겹쳐도 된다. (발사기가 있는 장애물만)
+            bool hasLauncher = o.type == "cannon" || o.type == "homing" || o.type == "boomerang" || o.type == "laser";
+            if (o.target == "random" && hasLauncher)
+            {
+                var label = new GUIContent("발사기 겹쳐도 됨", "끄면(기본) 발사기가 이미 있거나 그동안 나올 자리를 피하고, 빈자리가 없으면 이 장애물은 나오지 않습니다. 레이저는 다른 레이저가 있는 줄(반대쪽 벽 포함)도 피합니다. 켜면 겹쳐도 나옵니다.");
+                EditorGUI.BeginChangeCheck();
+                bool allowOverlap = EditorGUILayout.Toggle(label, o.allowOverlap);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    RecordUndo("발사기 겹쳐도 됨 바꾸기");
+                    o.allowOverlap = allowOverlap;
+                }
             }
 
             string where = o.target == "player"
                 ? (isCell ? "하트가 있는 칸" : "하트가 있는 줄")
-                : (isCell ? "무작위 칸" : "무작위 줄");
+                : (isCell ? "무작위 칸" : o.fixLine ? $"무작위 쪽의 {o.line}번 줄" : "무작위 줄");
             EditorGUILayout.HelpBox($"장애물이 나타나는 순간 {where}로 정해집니다. 플레이할 때마다 달라질 수 있습니다.", MessageType.None);
         }
 
@@ -447,6 +519,21 @@ public partial class LevelEditorWindow
             {
                 RecordUndo("발사기 날아오는 쪽 바꾸기");
                 o.enterFrom = EnterKeys[newEnter];
+            }
+
+            float defaultEnterTime = o.type == "cannon" ? defaults.cannon.enterTime
+                : o.type == "homing" ? defaults.homing.enterTime
+                : o.type == "boomerang" ? defaults.boomerang.enterTime
+                : defaults.laser.enterTime;
+            EditOptional("발사기 날아오는 시간 (초)", o.enterTime, defaultEnterTime, v => o.enterTime = v);
+
+            var atBaseLabel = new GUIContent("발사기 처음 격자 자리", "켜면 격자가 줄어도 발사기가 처음 격자(5x5)의 벽 바깥에 있습니다. 시간은 그대로 그때의 벽에 닿는 순간입니다.");
+            EditorGUI.BeginChangeCheck();
+            bool atBase = EditorGUILayout.Toggle(atBaseLabel, o.launcherAtBase);
+            if (EditorGUI.EndChangeCheck())
+            {
+                RecordUndo("발사기 자리 바꾸기");
+                o.launcherAtBase = atBase;
             }
         }
     }
@@ -477,6 +564,7 @@ public partial class LevelEditorWindow
             case "cannon": return "포탄이 격자에 닿는 순간";
             case "homing": return "유도탄이 발사되는 순간";
             case "boomerang": return "부메랑이 처음 격자에 닿는 순간";
+            case "block": return "직사각형 앞면이 격자에 닿는 순간";
             case "spike": return "가시가 다 튀어나온 순간";
             case "laser": return "레이저가 켜지는 순간";
             case "floor": return "바닥 포탄이 튀어나오는 순간";
@@ -505,6 +593,51 @@ public partial class LevelEditorWindow
 
     void DrawWallFields(ObstacleData o)
     {
+        // 벽 하나만 움직일지, 여러 개를 한 번에 움직일지 고른다.
+        EditorGUI.BeginChangeCheck();
+        bool multi = EditorGUILayout.Toggle(new GUIContent("여러 벽 한 번에", "켜면 네 벽을 각각 몇 칸씩 움직일지 한 번에 정합니다."), o.IsMultiWall);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("벽 이동 방식 바꾸기");
+            o.side = multi ? ObstacleData.MultiWallSide : "right";
+            o.moveLeft = o.moveRight = o.moveTop = o.moveBottom = 0;
+            if (!multi) o.size = Mathf.Clamp(defaults.columns, 1, defaults.maxColumns);
+            GUIUtility.ExitGUI();   // 아래에 그릴 칸이 달라진다.
+        }
+
+        if (multi) DrawMultiWallMoves(o);
+        else DrawSingleWallMove(o);
+
+        EditOptional("경고 시간 (초)", o.warnTime, defaults.wallWarnTime, v => o.warnTime = v);
+        EditOptional("이동 시간 (초)", o.moveTime, defaults.wallMoveTime, v => o.moveTime = v);
+
+        var b = BoundsAt(o.time);
+        EditorGUILayout.LabelField("움직인 뒤 격자", $"가로 {b.Columns}칸 × 세로 {b.RowCount}칸");
+        DrawGridPicker(o, PickMode.Preview);
+    }
+
+    /// <summary>랜덤 위치에서 줄 번호만 정해 두기. 왼쪽·오른쪽 벽이면 가로줄(0이 아래), 위·아래 벽이면 세로줄(0이 왼쪽)이다.</summary>
+    void DrawFixedLine(ObstacleData o)
+    {
+        var label = new GUIContent("줄 직접 정하기", "켜면 쪽만 무작위로 고르고 줄은 아래 번호로 정합니다. 왼쪽·오른쪽 벽이면 가로줄(0이 아래), 위·아래 벽이면 세로줄(0이 왼쪽)입니다.");
+        var b = BoundsAt(o.time);
+        int first = Mathf.Min(b.minX, b.minY);
+        int last = Mathf.Max(first, Mathf.Max(b.maxX, b.maxY) - 1);
+
+        EditorGUI.BeginChangeCheck();
+        bool fixLine = EditorGUILayout.Toggle(label, o.fixLine);
+        int line = fixLine ? EditorGUILayout.IntSlider("줄 번호", Mathf.Clamp(o.line, first, last), first, last) : o.line;
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("줄 직접 정하기 바꾸기");
+            o.fixLine = fixLine;
+            o.line = line;
+        }
+    }
+
+    /// <summary>벽 하나: 어느 벽을 움직여 그 방향 칸 수를 몇으로 만들지</summary>
+    void DrawSingleWallMove(ObstacleData o)
+    {
         int sideIndex = Mathf.Max(0, Array.IndexOf(SideKeys, o.side));
 
         EditorGUI.BeginChangeCheck();
@@ -518,12 +651,29 @@ public partial class LevelEditorWindow
             o.side = SideKeys[newSide];
             o.size = size;
         }
+    }
 
-        EditOptional("경고 시간 (초)", o.warnTime, defaults.wallWarnTime, v => o.warnTime = v);
+    /// <summary>여러 벽: 네 벽을 각각 몇 칸 움직일지. +면 늘어나고 -면 줄어든다.</summary>
+    void DrawMultiWallMoves(ObstacleData o)
+    {
+        EditorGUILayout.LabelField("+는 바깥으로(칸이 늘어남), -는 안쪽으로(칸이 줄어듦), 0은 그대로", EditorStyles.miniLabel);
 
-        var b = BoundsAt(o.time);
-        EditorGUILayout.LabelField("움직인 뒤 격자", $"가로 {b.Columns}칸 × 세로 {b.RowCount}칸");
-        DrawGridPicker(o, PickMode.Preview);
+        int columns = defaults.maxColumns - 1;
+        int rows = defaults.maxRows - 1;
+
+        EditorGUI.BeginChangeCheck();
+        int left = EditorGUILayout.IntSlider("왼쪽 벽", o.moveLeft, -columns, columns);
+        int right = EditorGUILayout.IntSlider("오른쪽 벽", o.moveRight, -columns, columns);
+        int top = EditorGUILayout.IntSlider("위쪽 벽", o.moveTop, -rows, rows);
+        int bottom = EditorGUILayout.IntSlider("아래쪽 벽", o.moveBottom, -rows, rows);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo("벽 이동 바꾸기");
+            o.moveLeft = left;
+            o.moveRight = right;
+            o.moveTop = top;
+            o.moveBottom = bottom;
+        }
     }
 
     // ───────────────────────── 격자 그림 ─────────────────────────

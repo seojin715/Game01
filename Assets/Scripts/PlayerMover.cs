@@ -31,6 +31,13 @@ public class PlayerMover : MonoBehaviour
     [Tooltip("목표까지 이 거리보다 가까우면 칸에 딱 붙인다.")]
     [Min(0.0001f)] public float snapDistance = 0.01f;
 
+    [Header("텔레포트 소리")]
+    [Tooltip("벽을 넘어 반대편으로 가는 순간 나는 소리 (Assets/Audio/SFX). 비워 두면 소리가 나지 않는다.")]
+    public AudioClip teleportSound;
+
+    [Tooltip("텔레포트 소리 크기 (0~4). 1이 파일의 원래 크기이고, 1보다 크면 더 커진다. 너무 크면 소리가 찌그러질 수 있다.")]
+    [Range(0f, SoundEffects.MaxVolume)] public float teleportVolume = 0.4f;
+
     /// <summary>하트가 향하고 있는 목표 칸</summary>
     public Vector2Int Cell { get; private set; }
 
@@ -48,6 +55,9 @@ public class PlayerMover : MonoBehaviour
 
     /// <summary>텔레포트한 순간 옮긴 거리를 알린다. (잔상이 화면을 가로질러 남지 않게)</summary>
     public event System.Action<Vector3> Teleported;
+
+    /// <summary>들어갈 수 없는 칸으로 움직이려다 막혔을 때 그 칸을 알린다. (직사각형 포탄이 닿은 표시를 띄울 때 쓴다)</summary>
+    public event System.Action<Vector2Int> Bumped;
 
     void Awake()
     {
@@ -105,6 +115,7 @@ public class PlayerMover : MonoBehaviour
 
         // 텔레포트가 켜져 있고 끝 칸이면 반대편 끝 칸으로 넘어간다.
         if (grid.TryGetWrapTarget(Cell, dx, dy, out var target)) WrapTo(next, target);
+        else Bumped?.Invoke(next);
     }
 
     /// <summary>
@@ -118,7 +129,20 @@ public class PlayerMover : MonoBehaviour
         Cell = target;
         WrapOffset = offset;
         IsWrapping = true;
+        SoundEffects.Play(teleportSound, teleportVolume);
         Teleported?.Invoke(offset);
+    }
+
+    /// <summary>장애물(직사각형 포탄)이 하트를 다른 칸으로 밀어낸다. 피해는 없다.</summary>
+    public void PushTo(Vector2Int cell)
+    {
+        Cell = cell;
+    }
+
+    /// <summary>밀리는 하트가 장애물에 겹쳐 보이지 않게 위치를 바로 옮긴다. 목표 칸은 그대로다.</summary>
+    public void PushPosition(Vector3 position)
+    {
+        transform.position = position;
     }
 
     /// <summary>벽이 지금 칸으로 들어오기 시작하면 피해 없이 가장 가까운 안쪽 칸으로 밀려난다.</summary>

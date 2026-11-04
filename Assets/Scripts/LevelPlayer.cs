@@ -57,6 +57,9 @@ public class LevelPlayer : MonoBehaviour
     [Header("분열탄")]
     public BurstSettings burst = new BurstSettings();
 
+    [Header("직사각형 포탄")]
+    public BlockSettings block = new BlockSettings();
+
     [Header("어둠")]
     public DarkSettings dark = new DarkSettings();
 
@@ -72,6 +75,7 @@ public class LevelPlayer : MonoBehaviour
     Transform container;
     ObstacleContext context;
     PlayerMover mover;   // 하트가 있는 칸 (target: player)
+    readonly Dictionary<int, GridSide> groupSides = new Dictionary<int, GridSide>();   // 묶음마다 정해 둔 랜덤 쪽
 
     static readonly int ColorProperty = Shader.PropertyToID("_Color");
     readonly List<(float time, bool on)> darkEvents = new List<(float, bool)>();   // 어둠 켜기/끄기 (시간 순)
@@ -147,6 +151,7 @@ public class LevelPlayer : MonoBehaviour
         if (Level == null || grid == null) return;
 
         container = new GameObject("Obstacles").transform;
+        groupSides.Clear();
 
         // 벽 이벤트를 먼저 격자에 넘긴다. 장애물이 "그 시간의 격자"에 맞춰 자리 잡아야 하기 때문이다.
         SetUpWalls();
@@ -158,6 +163,7 @@ public class LevelPlayer : MonoBehaviour
         {
             grid = grid,
             heart = heart,
+            mover = mover,
             color = Level.GetObstacleColor(),
             beatLength = Level.bpm > 0f ? 60f / Level.bpm : 0.5f,
             container = container,
@@ -183,6 +189,7 @@ public class LevelPlayer : MonoBehaviour
                 case "spike":
                 case "boomerang":
                 case "burst":
+                case "block":
                     // target이 있으면 자리를 나타날 때 정한다. (무작위, 하트가 있는 줄)
                     AddIfValid(string.IsNullOrWhiteSpace(data.target) ? CreateObstacle(type, data, i) : CreateTargeted(type, data, i));
                     break;
@@ -258,6 +265,13 @@ public class LevelPlayer : MonoBehaviour
             obstacle.Spawn();
             obstacle.Despawn();
         }
+
+        // 소리도 미리 올려 둔다. (처음 틀 때 늦게 나지 않도록)
+        SoundEffects.Preload(
+            cannon.sound.clip, laser.fireSound, floor.sound.clip, floor.offSound.clip,
+            homing.sound.clip, homing.explodeSound.clip, spike.sound.clip, boomerang.sound.clip,
+            burst.sound.clip, block.sound.clip, health != null ? health.hitSound : null,
+            mover != null ? mover.teleportSound : null);
     }
 
     /// <summary>종류에 맞는 장애물을 만든다. 자리가 잘못됐으면 null.</summary>
@@ -272,6 +286,7 @@ public class LevelPlayer : MonoBehaviour
             case "spike": return CreateSpike(data, context, index);
             case "boomerang": return CreateBoomerang(data, context, index);
             case "burst": return CreateBurst(data, context, index);
+            case "block": return TryGetSideAndLine(data, index, out var blockSide) ? new BlockObstacle(data, context, block, blockSide) : null;
             default: return null;
         }
     }
@@ -287,7 +302,14 @@ public class LevelPlayer : MonoBehaviour
         }
 
         // 나오는 시간은 자리와 상관없으므로, 임시로 한 번 자리를 정해 만들어 보고 등장 시간을 얻는다.
-        var sample = CreateObstacle(type, PlaceTarget(type, data), index);
+        var samplePlace = PlaceTarget(type, data);
+        if (samplePlace == null)
+        {
+            Debug.LogWarning($"레벨 장애물 #{index} ({data}): 그 시간의 격자에 정해 둔 줄이 없어서 나오지 않습니다.");
+            return null;
+        }
+
+        var sample = CreateObstacle(type, samplePlace, index);
         if (sample == null) return null;
 
         // 분열탄은 벽에서 먼 칸일수록 일찍 출발하므로, 어느 칸이 정해져도 늦지 않게 가장 먼 칸 기준으로 준비한다.
@@ -299,15 +321,89 @@ public class LevelPlayer : MonoBehaviour
             appearTime = data.time - burst.LeadSeconds(farthest, context.beatLength);
         }
 
+        // 랜덤 자리의 발사기는 기본으로 겹치지 않는다. 이 발사기가 있는 동안 비어 있는 자리에서만 고른다.
+        bool avoidLaunchers = !data.allowOverlap && target == "random" && sample.LauncherSide.HasValue;
+        float launcherEnd = sample.LauncherEndTime;
+
         return new TargetedObstacle(data, context, appearTime,
-            d => PlaceTarget(type, d),
+            d => avoidLaunchers ? PlaceInFreeSlot(d, appearTime, launcherEnd) : PlaceTarget(type, d),
             d => CreateObstacle(type, d, index));
+    }
+
+    /// <summary>
+    /// 발사기가 겹치지 않는 자리(쪽과 줄) 중에서 무작위로 고른다. 빈자리가 없으면 null이고, 그 장애물은 나오지 않는다.
+    /// 지금 있는 발사기뿐 아니라, 이 발사기가 있는 동안 나올 예정인 발사기(자리를 정해 둔 장애물)의 자리도 피한다.
+    /// </summary>
+    ObstacleData PlaceInFreeSlot(ObstacleData data, float start, float end)
+    {
+        var b = grid.BoundsAt(data.time);
+        bool isLaser = data.type.Trim().ToLowerInvariant() == "laser";
+        var free = new List<(GridSide side, int line)>();
+
+        foreach (var side in GroupedSides(data))
+        {
+            bool horizontal = GridSideUtil.IsHorizontal(side);
+            int first = horizontal ? b.FirstRow : b.FirstColumn;
+            int last = horizontal ? b.LastRow : b.LastColumn;
+
+            for (int line = first; line <= last; line++)
+            {
+                if (data.fixLine && line != data.line) continue;   // 줄을 정해 두었으면 그 줄만 본다.
+                if (!HasLauncherAt(side, line, start, end, isLaser)) free.Add((side, line));
+            }
+        }
+
+        if (free.Count == 0) return null;
+
+        var picked = free[Random.Range(0, free.Count)];
+        var placed = JsonUtility.FromJson<ObstacleData>(JsonUtility.ToJson(data));
+        placed.target = "";
+        placed.side = picked.side.ToString().ToLowerInvariant();
+        placed.line = picked.line;
+        if (isLaser) placed.axis = GridSideUtil.IsHorizontal(picked.side) ? "row" : "col";
+        return placed;
+    }
+
+    /// <summary>
+    /// 노래 시간 start부터 end 사이에 그 자리에 발사기가 있는지.
+    /// 레이저는 양쪽 벽 중 어디서 쏴도 같은 줄을 지나므로, 다른 레이저가 있는 줄이면 반대쪽 벽도 찬 자리로 본다.
+    /// </summary>
+    bool HasLauncherAt(GridSide side, int line, float start, float end, bool isLaser)
+    {
+        foreach (var obstacle in schedule)
+        {
+            var other = obstacle.Resolved;   // 아직 자리를 정하지 않은 장애물은 발사기 자리가 없다.
+            if (!other.LauncherSide.HasValue || other.Data.line != line) continue;
+
+            bool sameSlot = other.LauncherSide == side;
+            bool sameBeam = isLaser && other is LaserObstacle
+                && GridSideUtil.IsHorizontal(other.LauncherSide.Value) == GridSideUtil.IsHorizontal(side);
+            if (!sameSlot && !sameBeam) continue;
+
+            if (other.AppearTime < end && other.LauncherEndTime > start) return true;
+        }
+        return false;
+    }
+
+    /// <summary>쪽 글자가 뜻하는 벽들. row면 왼쪽·오른쪽, col이면 위·아래, any나 빈 값이면 네 쪽 모두.</summary>
+    static GridSide[] SidesOf(string text)
+    {
+        switch (text == null ? "" : text.Trim().ToLowerInvariant())
+        {
+            case "row": return new[] { GridSide.Left, GridSide.Right };
+            case "col":
+            case "column": return new[] { GridSide.Top, GridSide.Bottom };
+            default:
+                if (GridSideUtil.TryParse(text, out var side)) return new[] { side };
+                return new[] { GridSide.Left, GridSide.Right, GridSide.Top, GridSide.Bottom };
+        }
     }
 
     /// <summary>
     /// target을 실제 자리로 바꾼 장애물 데이터를 만든다.
     /// player면 하트가 있는 줄(바닥 포탄은 칸), random이면 그 시간 격자 안에서 무작위로 고른다.
     /// 쪽(side)은 정해져 있으면 그대로, row/col/any면 그중에서 무작위로 고른다.
+    /// fixLine이면 쪽만 무작위이고 줄은 line 그대로다. 그 줄이 있는 쪽에서만 고르고, 없으면 null이다.
     /// </summary>
     ObstacleData PlaceTarget(string type, ObstacleData data)
     {
@@ -324,32 +420,60 @@ public class LevelPlayer : MonoBehaviour
             placed.cell = toPlayer
                 ? new[] { heartCell.x, heartCell.y }
                 : new[] { Random.Range(b.FirstColumn, b.LastColumn + 1), Random.Range(b.FirstRow, b.LastRow + 1) };
-            if (type == "burst") placed.side = PickSide(data.side).ToString().ToLowerInvariant();   // 날아오는 쪽
+            if (type == "burst") placed.side = PickSide(data).ToString().ToLowerInvariant();   // 날아오는 쪽
             return placed;
         }
 
-        GridSide side = PickSide(data.side);
+        bool fixedLine = !toPlayer && data.fixLine;
+        GridSide side;
+        if (fixedLine)
+        {
+            var sides = new List<GridSide>(GroupedSides(data));
+            sides.RemoveAll(s => GridSideUtil.IsHorizontal(s)
+                ? data.line < b.FirstRow || data.line > b.LastRow
+                : data.line < b.FirstColumn || data.line > b.LastColumn);
+            if (sides.Count == 0) return null;
+            side = sides[Random.Range(0, sides.Count)];
+        }
+        else
+        {
+            side = PickSide(data);
+        }
+
         bool horizontal = GridSideUtil.IsHorizontal(side);   // 왼쪽/오른쪽이면 가로줄
         placed.side = side.ToString().ToLowerInvariant();
-        placed.line = toPlayer
-            ? (horizontal ? heartCell.y : heartCell.x)
-            : (horizontal ? Random.Range(b.FirstRow, b.LastRow + 1) : Random.Range(b.FirstColumn, b.LastColumn + 1));
+        if (!fixedLine)
+        {
+            placed.line = toPlayer
+                ? (horizontal ? heartCell.y : heartCell.x)
+                : (horizontal ? Random.Range(b.FirstRow, b.LastRow + 1) : Random.Range(b.FirstColumn, b.LastColumn + 1));
+        }
         if (type == "laser") placed.axis = horizontal ? "row" : "col";
         return placed;
     }
 
-    /// <summary>row(왼쪽·오른쪽 중), col(위·아래 중), any나 빈 값(네 쪽 중)이면 무작위로 고르고, 정해져 있으면 그대로.</summary>
-    static GridSide PickSide(string text)
+    /// <summary>row(왼쪽·오른쪽 중), col(위·아래 중), any나 빈 값(네 쪽 중)이면 무작위로 고르고, 정해져 있으면 그대로. 묶여 있으면 묶음의 쪽이다.</summary>
+    GridSide PickSide(ObstacleData data)
     {
-        switch (text == null ? "" : text.Trim().ToLowerInvariant())
+        var sides = GroupedSides(data);
+        return sides[Random.Range(0, sides.Length)];
+    }
+
+    /// <summary>
+    /// 이 장애물이 고를 수 있는 벽들. 묶여 있으면 묶음에서 처음 고른 쪽 하나만 돌려줘서 묶음 전체가 같은 쪽을 쓴다.
+    /// 묶음의 쪽을 이 장애물이 쓸 수 없으면(묶음은 왼쪽인데 이 장애물은 위·아래 중) 자기 범위에서 고른다.
+    /// </summary>
+    GridSide[] GroupedSides(ObstacleData data)
+    {
+        var sides = SidesOf(data.side);
+        if (data.group == 0 || sides.Length == 1) return sides;
+
+        if (!groupSides.TryGetValue(data.group, out var shared))
         {
-            case "row": return Random.value < 0.5f ? GridSide.Left : GridSide.Right;
-            case "col":
-            case "column": return Random.value < 0.5f ? GridSide.Top : GridSide.Bottom;
-            default:
-                if (GridSideUtil.TryParse(text, out var side)) return side;
-                return (GridSide)Random.Range(0, 4);
+            shared = sides[Random.Range(0, sides.Length)];
+            groupSides[data.group] = shared;
         }
+        return System.Array.IndexOf(sides, shared) >= 0 ? new[] { shared } : sides;
     }
 
     LevelObstacle CreateCannon(ObstacleData data, ObstacleContext context, int index)
@@ -371,17 +495,12 @@ public class LevelPlayer : MonoBehaviour
     {
         if (!TryGetSideAndLine(data, index, out var side)) return null;
 
-        // range는 날아가는 방향의 칸 수 안이어야 한다. (적지 않으면 기본값)
+        // 사거리(range)가 그 시간의 격자보다 길면 끝 칸까지만 날아간다. (적지 않으면 기본값)
         var bounds = grid.BoundsAt(data.time);
         int cellsAlong = GridSideUtil.IsHorizontal(side)
             ? bounds.LastColumn - bounds.FirstColumn + 1
             : bounds.LastRow - bounds.FirstRow + 1;
-        float range = data.range > 0f ? data.range : boomerang.defaultRange;
-        if (range < 0.5f || range > cellsAlong)
-        {
-            Debug.LogWarning($"레벨 장애물 #{index} ({data}): range는 0.5부터 {cellsAlong}까지입니다.");
-            return null;
-        }
+        float range = Mathf.Clamp(data.range > 0f ? data.range : boomerang.defaultRange, 0.5f, Mathf.Max(0.5f, cellsAlong));
 
         return new BoomerangObstacle(data, context, boomerang, side, range);
     }
@@ -477,13 +596,23 @@ public class LevelPlayer : MonoBehaviour
             var data = Level.obstacles[i];
             if (data == null || data.type == null || data.type.Trim().ToLowerInvariant() != "wall") continue;
 
+            // 벽 여러 개를 한 번에 움직이는 이벤트는 벽마다 같은 시간의 이벤트로 나눈다.
+            if (data.IsMultiWall)
+            {
+                foreach (var (moveSide, move) in data.WallMoves())
+                {
+                    events.Add(new WallEvent { time = data.time, side = moveSide, size = move, relative = true, warnTime = data.warnTime, moveTime = data.moveTime });
+                }
+                continue;
+            }
+
             if (!GridSideUtil.TryParse(data.side, out var side))
             {
                 Debug.LogWarning($"레벨 장애물 #{i} ({data}): side는 left, right, top, bottom 중 하나여야 합니다.");
                 continue;
             }
 
-            events.Add(new WallEvent { time = data.time, side = side, size = data.size, warnTime = data.warnTime });
+            events.Add(new WallEvent { time = data.time, side = side, size = data.size, warnTime = data.warnTime, moveTime = data.moveTime });
         }
 
         var problems = new List<string>();
@@ -635,7 +764,7 @@ public class LevelPlayer : MonoBehaviour
             if (!isMarker.TryGetValue(r, out bool marker))
             {
                 if (isMarker.Count > 4000) isMarker.Clear();   // 지워진 장애물 것이 쌓이지 않게 가끔 비운다.
-                marker = r.name == "Warning" || r.name == "RangeRibbon";
+                marker = r.name == "Warning" || r.name == "RangeRibbon" || r.name == "BlockTouch";
                 isMarker[r] = marker;
             }
             if (marker) continue;
@@ -658,7 +787,11 @@ public class LevelPlayer : MonoBehaviour
         // 레벨 에디터 미리보기: 목숨은 그대로 두고, 하트를 번쩍이며 맞은 시간만 기록한다.
         if (LevelPreview.Active)
         {
-            if (LevelPreview.RecordHit(clock.SongTime) && heart != null) heart.Flash();
+            if (LevelPreview.RecordHit(clock.SongTime))
+            {
+                if (heart != null) heart.Flash();
+                if (health != null) health.PlayHitSound();
+            }
             return;
         }
 
